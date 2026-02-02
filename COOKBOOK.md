@@ -97,12 +97,11 @@ junie-run:
 1. Mention `@junie` in any comment on merge requests or issues:
    - `@junie implement email validation` on an issue → Junie creates an MR with the implementation
    - `@junie add error handling here` on an MR → Junie implements the changes
-   - `@junie resolve conflicts` on an MR with merge conflicts → Junie resolves the conflicts
    - `@junie fix the bug in login flow` → Junie analyzes and proposes a solution
 
 **Features enabled:**
 - Works on merge requests, issues, and comments
-- Only triggers on explicit `@junie` mentions
+- Only triggers on explicit `@junie`(or your trigger) mentions
 ---
 
 ## 1. Automated Code Review
@@ -156,7 +155,6 @@ junie-auto-code-review:
 2. Uses built-in `code-review` prompt for structured, opinionated review
 3. Posts inline comments on specific lines using GitLab MCP tools (when `USE_MCP: "true"`)
 4. Provides comprehensive review summary
-5. Skips when MR is closed or merged
 
 **The built-in code review focuses on:**
 - **Repository style adherence** - naming, formatting, package structure
@@ -193,54 +191,3 @@ junie-run:
 4. Provides comprehensive review summary
 
 ---
-
-## Environment Variables Reference
-
-Customize Junie behavior with these variables:
-
-| Variable                       | Default         | Description                                                              |
-|--------------------------------|-----------------|--------------------------------------------------------------------------|
-| `JUNIE_BOT_TAGGING_PATTERN`    | junie           | RegExp for bot's name (e.g., `"junie[-a-zA-Z0-9]*"`)                    |
-| `JUNIE_VERSION`                | latest          | Specific Junie CLI version to use                                        |
-| `JUNIE_MODEL`                  | auto            | Specific model (e.g., `claude-sonnet-4-5-20250929`)                      |
-| `JUNIE_GUIDELINES_FILENAME`    | guidelines.md   | Filename of guidelines file (in `<project-root>/.junie` dir)             |
-| `USE_MCP`                      | false           | Enable GitLab MCP tools for inline code review comments                  |
-
-**Example:**
-```yaml
-variables:
-  JUNIE_BOT_TAGGING_PATTERN: "junie-dev|junie-bot"
-  JUNIE_MODEL: "claude-sonnet-4-5-20250929"
-  USE_MCP: "true"
-```
-
----
-
-## Troubleshooting
-
-**Problem:** Junie doesn't respond to `@junie` mentions
-
-**Solution:**
-- Make sure you ran `junie-init` job at least once
-- Check that `JUNIE_API_KEY` and `GITLAB_TOKEN_FOR_JUNIE` are set in CI/CD variables
-- Verify webhook exists in **Settings → Webhooks**
-
-**Problem:** Code review doesn't post inline comments
-
-**Solution:**
-- Set `USE_MCP: "true"` in job variables
-- Use `JUNIE_MODEL: "claude-sonnet-4-5-20250929"` (MCP requires Claude)
-
-**Problem:** "No one allowed" error when running jobs
-
-**Solution:**
-- Go to **CI/CD Settings → Variables**
-- Make sure "No one allowed" is NOT selected
-
----
-
-## Need Help?
-
-- 📘 Full documentation: [README.md](README.md)
-- 🐛 Report issues: [GitLab Issues](https://gitlab.com/jetbrains/matterhorn/junie-gitlab/-/issues)
-- 💬 Ask Junie: Comment `@junie` in any MR or issue
