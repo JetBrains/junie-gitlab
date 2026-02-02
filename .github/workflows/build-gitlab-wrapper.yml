@@ -22,14 +22,14 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: registry.jetbrains.team
-          username: ${{ secrets.SPACE_PUBLIC_REGISTRY_USER }}
+          username: ${{ vars.SPACE_PUBLIC_REGISTRY_USER }}
           password: ${{ secrets.SPACE_PUBLIC_REGISTRY_TOKEN }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./gitlab-cli-wrapper
-          file: ./gitlab-cli-wrapper/Dockerfile
+          context: .
+          file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
