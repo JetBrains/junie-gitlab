@@ -59,7 +59,7 @@ export async function execute(context: GitLabExecutionContext) {
             await checkoutBranch(branchToPull);
         }
 
-        const resultJson = runJunie(taskExtractionResult.generateJuniePrompt(context.useMcp), context.junieApiKey, context.junieModel);
+        const resultJson = runJunie(taskExtractionResult.generateJuniePrompt(context.useMcp), context.junieApiKey, context.junieModel, context.junieGuidelinesFilename);
         logger.debug("Full output: " + resultJson.trim());
         const result = JSON.parse(resultJson);
 
@@ -161,7 +161,7 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
     return new FailedTaskExtractionResult(`Unsupported event: ${JSON.stringify(context)}`);
 }
 
-function runJunie(prompt: string, apiKey: string, model: string | null): string {
+function runJunie(prompt: string, apiKey: string, model: string | null, guidelinesFilename: string | null): string {
     const token = apiKey;
     runCommand(`mkdir -p ${cacheDir}`);
     logger.debug(`Running Junie with prompt: '${prompt}'`);
@@ -172,8 +172,10 @@ function runJunie(prompt: string, apiKey: string, model: string | null): string 
                 value: prompt,
             }
         ];
+        const modelArg = model ? ` --model="${model}"` : "";
+        const guidelinesArg = guidelinesFilename ? ` --guidelines-file="${guidelinesFilename}"` : "";
         return runCommand(
-            `junie --auth "${token}" --cache-dir="${cacheDir}" --output-format="json"` + (model ? ` --model="${model}"` : ""),
+            `junie --auth "${token}" --cache-dir="${cacheDir}" --output-format="json"${modelArg}${guidelinesArg}`,
             extraEnv,
         );
     } catch (e) {

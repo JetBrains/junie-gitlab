@@ -15,18 +15,25 @@ If you use the auto-cleanup feature (see below), you'll need to set its role to 
 When all the variables are set, you can add a `.gitlab-ci.yml` file:
 
 + If you don't have one yet, you can use [our template](./script-sample.yaml)
-+ If you have one, just add the stages `junie-init` and `junie-run` from [our template](./script-sample.yaml)
+
+## Usage Examples & Recipes
+
+After completing the setup, check out the [COOKBOOK.md](./COOKBOOK.md) for ready-to-use examples:
+- 🚀 **Basic Interactive Setup** - Respond to `@junie` mentions in MRs and issues
+- 🔍 **Automated Code Review** - Automatic or on-demand code reviews with inline comments
+- 📚 **Real-world recipes** - Copy-paste configurations for common workflows
 
 ### Additional parameters
 
 For the stage `junie-run` you can also set the following environment variables to customize the behavior:
 
-| Variable                    | Default value | Description                                                              |
-|-----------------------------|---------------|--------------------------------------------------------------------------|
-| `JUNIE_BOT_TAGGING_PATTERN` | junie         | RegExp for a bot's name for mentioning Junie                             |
-| `JUNIE_VERSION`             | `null`        | Version of Junie CLI to use. If is not set – the latest one will be used |
-| `JUNIE_MODEL`               | `null`        | Specific Junie model to use (e.g., `claude-sonnet-4-5-20250929`)         |
-| `USE_MCP`                   | `false`       | Enable GitLab MCP tools for inline code review comments                  |
+| Variable                       | Default value    | Description                                                                 |
+|--------------------------------|------------------|-----------------------------------------------------------------------------|
+| `JUNIE_BOT_TAGGING_PATTERN`    | junie            | RegExp for a bot's name for mentioning Junie                                |
+| `JUNIE_VERSION`                | `null`           | Version of Junie CLI to use. If is not set – the latest one will be used    |
+| `JUNIE_MODEL`                  | `null`           | Specific Junie model to use (e.g., `claude-sonnet-4-5-20250929`)            |
+| `JUNIE_GUIDELINES_FILENAME`    | `guidelines.md`  | Filename of the guidelines file (should be in `<project-root>/.junie` dir)  |
+| `USE_MCP`                      | `false`          | Enable GitLab MCP tools for inline code review comments                     |
 
 
 ## Commands
@@ -64,3 +71,14 @@ When the "code-review" phrase is detected, Junie will:
 - Review the code according to repository style and best practices
 - Post inline comments with suggestions using GitLab MCP tools (if available)
 - Provide a comprehensive review summary
+
+## Documentation
+
+- **[COOKBOOK.md](./COOKBOOK.md)** - Ready-to-use recipes and examples for common workflows
+- **[script-sample.yaml](./script-sample.yaml)** - Complete CI/CD configuration template
+
+## Need Help?
+
+- 📘 Check the [Cookbook](./COOKBOOK.md) for examples
+- 🐛 Report issues in the project's issue tracker
+- 💬 Mention `@junie` in any MR or issue for interactive assistance
