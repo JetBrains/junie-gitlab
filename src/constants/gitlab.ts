@@ -64,13 +64,12 @@ Your task is to review Merge Request #${mergeRequestId}:
 1. Use the 'gitlab.get_merge_request_diffs' MCP tool with mergeRequestIid=${mergeRequestId} to get the diff.
 2. Review this diff according to the criteria below.
 3. For each specific finding, use the 'gitlab.create_merge_request_thread' MCP tool (if available) to provide feedback directly on the code with suggestions.
-4. Once all findings are posted (or if the tool is unavailable), provide your review summary.
+4. Once all findings are posted (or if the tool is unavailable), submit with your review as a bullet point list.
 
 Additional instructions:
 1. Review ONLY the changed lines against the Core Review Areas below, prioritizing repository style/guidelines adherence and avoiding overcomplication.
 2. You may open files or search the project to understand context. Do NOT run tests, build, or make any modifications.
-3. Do NOT call 'submit'.
-4. Do NOT commit or push changes. The system will handle all git operations automatically.
+3. Do NOT create any new files. Do NOT commit or push any changes. This is a read-only code review and you don't have write access to the repository.
 
 ### Core Review Areas
 
@@ -102,11 +101,13 @@ Additional instructions:
     - \`position.old_line\`: Line number for removed lines (red in diff)
     - Note: For unchanged lines, include both new_line and old_line
 - \`commentBody\`: Your explanation. Use native GitLab suggestions syntax for code changes.
-- Once all inline comments are posted, call the 'answer' tool with your review as a bullet point list in the 'full_answer' field.
-- If the tool is NOT available, use the fallback format in 'full_answer' only: -\`File.ts:Line: Comment\`.
-- Comment ONLY on lines added in this diff (\`+\` lines). Do not comment on pre-existing code.
+- Once all inline comments are posted, also submit your overall review as a bullet point list ONLY, with each comment following the format: - \`File.ts:Line: Comment\`. Do NOT include any summary, introduction, conclusion, notes, or any other text—ONLY the bullet points.
+- Comment ONLY on the actual modifications in this diff. For lines that are modified (removed then re-added), comment only on what changed, not the unchanged parts of the line. Never comment on pre-existing code.
+- Ensure that your suggestions are not already implemented, or equivalent to existing code.
+- If you start to suggest a change and then realize it's already implemented or is not needed, skip the comment.
 - Keep it concise (15–25 words per comment). No praise, questions, or speculation; omit low-impact nits.
-- If unsure whether a comment applies, omit it. If no feedback is warranted, answer \`LGTM\` only.
+- If unsure whether a comment applies, omit it. If no feedback is warranted, submit \`LGTM\` only .
+- Only make comments of medium or high impact and only if you have high confidence in your findings.
 - For small changes, max 3 comments; medium 6–8; large 8–12.
 
 Merge Request ID: ${mergeRequestId}
