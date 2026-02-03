@@ -1,0 +1,51 @@
+version: '3.7'
+
+services:
+  # ----------------------------------------------------
+  # 1. GITLAB CE INSTANCE
+  # ----------------------------------------------------
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab-ce
+    restart: always
+    hostname: gitlab.example.local
+    environment:
+      # Set external URL for proper link generation
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab'
+        # Disable bundled NGINX health check for Docker
+        nginx['listen_port'] = 80
+    ports:
+      # HTTP access: Map container port 80 to host port 8080
+      - '8080:80'
+      # SSH access: Map container port 22 to host port 2222
+      - '2222:22'
+    networks:
+      - gitlab-net
+
+  # ----------------------------------------------------
+  # 2. GITLAB RUNNER
+  # ----------------------------------------------------
+  gitlab-runner:
+    image: gitlab/gitlab-runner:alpine
+    container_name: gitlab-runner
+    restart: always
+    volumes:
+      # Mount the Docker socket for the Runner to use the 'docker' executor
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # !!! ADD THIS LINE !!!
+      # Set the network name for the docker executor to use for job containers
+      DOCKER_NETWORK_MODE: gitlab-net
+    networks:
+      - gitlab-net
+    depends_on:
+      - gitlab
+
+# ----------------------------------------------------
+# NETWORKS
+# ----------------------------------------------------
+networks:
+  gitlab-net:
+    driver: bridge
+    external: true
