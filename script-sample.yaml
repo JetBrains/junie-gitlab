@@ -1,6 +1,20 @@
 stages:
   - junie
 
+# =============================================================================
+# Junie Trigger Configuration
+# =============================================================================
+# IMPORTANT: If you change the bot name from "junie" to something else,
+# you must update TWO places to keep them in sync:
+#
+# 1. junie-run rules: $COMMENT_TEXT =~ /@YOUR_BOT_NAME(\s|$)/i
+#    This filters comments BEFORE starting the pipeline (saves CI resources)
+#
+# 2. junie-run variables: JUNIE_BOT_TAGGING_PATTERN: "YOUR_BOT_NAME[-a-zA-Z0-9]*"
+#    This is used inside the wrapper code to detect mentions
+#
+# =============================================================================
+
 junie-init:
   stage: junie
   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
@@ -28,11 +42,15 @@ junie-run:
     - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
     - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
   rules:
-    # Only run for comment events (when someone writes @junie)
-    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note"
+    # Only run for comment events that mention @junie (case insensitive)
+    # This prevents creating pipelines for every comment
+    # NOTE: Keep this regex in sync with JUNIE_MENTION_TRIGGER variable above
+    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /@junie(\s|$)/i
       when: always
     - when: never
   variables:
+    # Pattern for matching Junie bot mentions inside the wrapper code
+    # NOTE: Keep this in sync with JUNIE_MENTION_TRIGGER and the regex in rules above
     JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
   artifacts:
     paths:

@@ -35,6 +35,21 @@ For the stage `junie-run` you can also set the following environment variables t
 | `JUNIE_GUIDELINES_FILENAME`    | `guidelines.md`  | Filename of the guidelines file (should be in `<project-root>/.junie` dir)  |
 | `USE_MCP`                      | `false`          | Enable GitLab MCP tools for inline code review comments                     |
 
+### Performance Optimization
+
+To avoid creating pipelines for every comment in your repository, the CI rules include a regex filter:
+```yaml
+- if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /@junie(\s|$)/i
+```
+
+This checks if the comment text contains "@junie" (case insensitive) **before** starting the pipeline. The regex `(\s|$)` ensures it matches `@junie` followed by a space or at the end of the comment. Pipelines only run when Junie is properly mentioned with @, saving CI/CD resources.
+
+**Customizing the trigger pattern:**
+If you change the bot name from "junie" to something else (e.g., "mybot"), you need to update **two places** in `.gitlab-ci.yml`:
+1. The regex in `junie-run` rules: `$COMMENT_TEXT =~ /@mybot(\s|$)/i` - filters comments before pipeline starts
+2. `JUNIE_BOT_TAGGING_PATTERN` variable in `junie-run` job: `"mybot[-a-zA-Z0-9]*"` - used by wrapper code
+
+See detailed comments at the top of `script-sample.yaml` for instructions.
 
 ## Commands
 

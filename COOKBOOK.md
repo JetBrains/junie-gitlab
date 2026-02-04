@@ -76,8 +76,9 @@ junie-run:
     - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
     - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
   rules:
-    # Only run for comment events (when someone writes @junie)
-    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note"
+    # Only run for comment events that mention @junie (case insensitive)
+    # This prevents creating pipelines for every comment
+    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /@junie(\s|$)/i
       when: always
     - when: never
   variables:
@@ -99,9 +100,13 @@ junie-run:
    - `@junie add error handling here` on an MR → Junie implements the changes
    - `@junie fix the bug in login flow` → Junie analyzes and proposes a solution
 
+**Performance optimization:**
+The `rules` section includes `$COMMENT_TEXT =~ /@junie(\s|$)/i` which checks if the comment contains "@junie" (case insensitive) BEFORE starting the pipeline. This prevents creating unnecessary pipelines for every comment in your repository - pipelines only start when Junie is properly mentioned with @.
+
 **Features enabled:**
 - Works on merge requests, issues, and comments
-- Only triggers on explicit `@junie`(or your trigger) mentions
+- Only triggers on explicit `@junie` mentions (with @)
+- Filters comments at CI rules level (before pipeline starts)
 ---
 
 ## 1. Automated Code Review
