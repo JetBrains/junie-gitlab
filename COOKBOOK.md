@@ -83,6 +83,7 @@ junie-run:
     - when: never
   variables:
     JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
+    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude instead of Gemini for MCP compatibility
   artifacts:
     paths:
       - junie-artifacts/working-directory
