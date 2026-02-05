@@ -1,4 +1,10 @@
-import {AccessTokenSchema, ExpandedMergeRequestSchema, Gitlab} from '@gitbeaker/rest';
+import {
+    AccessTokenSchema,
+    ExpandedGroupSchema,
+    ExpandedMergeRequestSchema,
+    Gitlab, IssueNoteSchema,
+    ProjectHookSchema, ProjectSchema, UserSchema
+} from '@gitbeaker/rest';
 import {webhookEnv} from "../webhook-env.js";
 import {IssueSchema} from "@gitbeaker/core";
 import {logger} from "../utils/logging.js";
@@ -17,7 +23,7 @@ export function getIssue(projectId: number, issueId: number): Promise<IssueSchem
     return api.Issues.show(issueId, {projectId});
 }
 
-export async function addIssueComment(projectId: number, issueId: number, body: string) {
+export async function addIssueComment(projectId: number, issueId: number, body: string): Promise<IssueNoteSchema> {
     logger.debug(`Adding comment to issue ${issueId} in project ${projectId}`);
     return await api.IssueNotes.create(projectId, issueId, body);
 }
@@ -74,7 +80,7 @@ export async function createMergeRequest(
     );
 }
 
-export async function deletePipeline(projectId: number, pipelineId: number) {
+export async function deletePipeline(projectId: number, pipelineId: number): Promise<void> {
     logger.debug(`Deleting pipeline ${pipelineId} from project ${projectId}`);
     return await api.Pipelines.remove(projectId, pipelineId);
 }
@@ -101,7 +107,7 @@ async function getAllPaginated<T>(
     return items;
 }
 
-export async function getAllProjectAccessTokens(projectId: number) {
+export async function getAllProjectAccessTokens(projectId: number): Promise<AccessTokenSchema[]> {
     logger.debug(`Fetching all project access tokens for project ${projectId}`);
     return getAllPaginated(
         (page, perPage) => api.ProjectAccessTokens.all(projectId, { page, perPage }),
@@ -122,22 +128,22 @@ export async function getAllGroupAccessTokens(groupId: number): Promise<AccessTo
     }
 }
 
-export async function getUserById(userId: number) {
+export async function getUserById(userId: number): Promise<UserSchema> {
     logger.debug(`Fetching user ${userId}`);
     return await api.Users.show(userId);
 }
 
-export async function getProjectById(projectId: number) {
+export async function getProjectById(projectId: number): Promise<ProjectSchema> {
     logger.debug(`Fetching project ${projectId}`);
     return await api.Projects.show(projectId);
 }
 
-export async function getGroupById(groupId: number) {
+export async function getGroupById(groupId: number): Promise<ExpandedGroupSchema> {
     logger.debug(`Fetching group ${groupId}`);
     return await api.Groups.show(groupId);
 }
 
-export async function recursivelyGetAllProjectTokens(projectId: number) {
+export async function recursivelyGetAllProjectTokens(projectId: number): Promise<AccessTokenSchema[]> {
     logger.debug(`Recursively fetching all tokens for project ${projectId}`);
     const allTokens: AccessTokenSchema[] = [];
 
@@ -186,7 +192,7 @@ export async function recursivelyGetAllProjectTokens(projectId: number) {
     return allTokens;
 }
 
-export async function getAllProjectHooks(projectId: number) {
+export async function getAllProjectHooks(projectId: number): Promise<ProjectHookSchema[]> {
     logger.debug(`Fetching all webhooks for project ${projectId}`);
     return api.ProjectHooks.all(projectId);
 }
