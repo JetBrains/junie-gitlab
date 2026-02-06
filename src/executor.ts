@@ -2,11 +2,11 @@ import {runCommand} from "./utils/commands.js";
 import {
     createMergeRequest,
     deletePipeline,
-    getIssue,
-    getMergeRequest,
     getUserById,
-    recursivelyGetAllProjectTokens
+    recursivelyGetAllProjectTokens,
+    api
 } from "./api/gitlab-api.js";
+import {GitLabDataFetcher} from "./api/gitlab-data-fetcher.js";
 import {
     addAllToGit,
     checkForChanges,
@@ -114,6 +114,7 @@ export async function execute(context: GitLabExecutionContext) {
 
 async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<TaskExtractionResult> {
     const {projectId, junieBotTaggingPattern, cliOptions: {customPrompt}} = context;
+    const dataFetcher = new GitLabDataFetcher(api);
 
     // Issue comment event
     if (isIssueCommentEvent(context)) {
@@ -121,13 +122,14 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
         if (!hasMention) {
             return new FailedTaskExtractionResult("Comment doesn't contain mention to Junie");
         }
-        const issue = await getIssue(projectId, context.issueId);
+
+        // Fetch rich issue data with discussions
+        logger.debug('Fetching rich issue data...');
+        const fetchedData = await dataFetcher.fetchIssueData(projectId, context.issueId);
+
         return new IssueCommentTask(
             context,
-            {
-                title: issue.title,
-                description: issue.description,
-            }
+            fetchedData
         );
     }
 
@@ -137,14 +139,14 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
         if (!hasMention) {
             return new FailedTaskExtractionResult("Comment doesn't contain mention to Junie");
         }
-        const mergeRequest = await getMergeRequest(projectId, context.mergeRequestId);
+
+        // Fetch rich MR data with commits, discussions, and changes
+        logger.debug('Fetching rich MR data...');
+        const fetchedData = await dataFetcher.fetchMergeRequestData(projectId, context.mergeRequestId);
+
         return new MergeRequestCommentTask(
             context,
-            {
-                title: mergeRequest.title,
-                description: mergeRequest.description ?? "(empty description)",
-                web_url: mergeRequest.web_url,
-            }
+            fetchedData
         );
     }
 
@@ -152,7 +154,11 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
     if (isMergeRequestEvent(context)) {
         // Only trigger actions if custom prompt is set
         if (customPrompt) {
-            return new MergeRequestEventTask(context);
+            // Fetch rich MR data with commits, discussions, and changes
+            logger.debug('Fetching rich MR data for event...');
+            const fetchedData = await dataFetcher.fetchMergeRequestData(projectId, context.mrEventId);
+
+            return new MergeRequestEventTask(context, fetchedData);
         } else {
             return new FailedTaskExtractionResult(`MR event action '${context.mrEventAction}' no custom prompt set`);
         }

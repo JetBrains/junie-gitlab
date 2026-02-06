@@ -6,34 +6,16 @@ import {
     MergeRequestNoteRequest
 } from "./feedback-request.js";
 import {
-    CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
-    createCodeReviewPrompt,
     JUNIE_STARTED_MESSAGE,
     JUNIE_FINISHED_PREFIX,
     JUNIE_NO_CHANGES_MESSAGE,
     MR_LINK_PREFIX,
     MR_INTRO_HEADER,
-    generateMcpNote,
-    GIT_OPERATIONS_NOTE
 } from "../constants/gitlab.js";
 import {IssueCommentEventContext, MergeRequestCommentEventContext, MergeRequestEventContext} from "../context.js";
+import {GitLabPromptFormatter} from "../utils/gitlab-prompt-formatter.js";
+import {FetchedData} from "../api/gitlab-data-fetcher.js";
 
-/**
- * Issue data from GitLab API
- */
-export interface IssueData {
-    title: string;
-    description: string;
-}
-
-/**
- * Merge Request data from GitLab API
- */
-export interface MergeRequestData {
-    title: string;
-    description: string;
-    web_url: string;
-}
 
 export type TaskExtractionResult = FailedTaskExtractionResult | SuccessfulTaskExtractionResult;
 
@@ -57,34 +39,34 @@ export interface SuccessfulTaskExtractionResult {
 export class IssueCommentTask implements SuccessfulTaskExtractionResult {
     public readonly success = true;
     public readonly checkoutBranch = null;
+    private readonly formatter = new GitLabPromptFormatter();
 
     constructor(
         public readonly context: IssueCommentEventContext,
-        public readonly issue: IssueData,
+        public readonly fetchedData: FetchedData,
     ) {}
 
     generateJuniePrompt(useMcp: boolean): string {
-        const { commentText, cliOptions: { customPrompt }, projectId, issueId, commentId } = this.context;
-        const { title, description } = this.issue;
+        const { cliOptions: { customPrompt } } = this.context;
 
-        let taskText: string;
-        if (customPrompt) {
-            taskText = `${customPrompt}\n\nIssue: ${title}\n\n${description}\n\nComment: ${commentText}`;
-        } else {
-            taskText = `${description}\n\n${commentText}`;
-        }
+        // Use GitLabPromptFormatter for rich context
+        const taskText = this.formatter.generatePrompt(
+            this.context,
+            this.fetchedData,
+            customPrompt ?? undefined,
+            useMcp
+        );
 
-        const mcpNote = generateMcpNote({ projectId, issueId, commentId });
         const object = {
             textTask: {
-                text: taskText + (useMcp ? mcpNote : '') + GIT_OPERATIONS_NOTE,
+                text: taskText,
             }
         };
         return JSON.stringify(object);
     }
 
     getTitle(): string {
-        return this.issue.title;
+        return this.fetchedData.issue?.title ?? "Issue";
     }
 
     generateMrIntro(outcome: string | null): string {
@@ -123,10 +105,11 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
 
 export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
     public readonly success = true;
+    private readonly formatter = new GitLabPromptFormatter();
 
     constructor(
         public readonly context: MergeRequestCommentEventContext,
-        public readonly mergeRequest: MergeRequestData,
+        public readonly fetchedData: FetchedData,
     ) { }
 
     get checkoutBranch(): string {
@@ -134,42 +117,26 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
     }
 
     generateJuniePrompt(useMcp: boolean): string {
-        const { commentText, cliOptions: { customPrompt }, projectId, mergeRequestId, commentId } = this.context;
-        const { title, description } = this.mergeRequest;
+        const { cliOptions: { customPrompt } } = this.context;
 
-        // Check if this is a code review request
-        const isCodeReviewInPrompt = customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt);
-        const isCodeReviewInComment = CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(commentText);
-        const isCodeReview = isCodeReviewInPrompt || isCodeReviewInComment;
-
-        let taskText: string;
-        if (isCodeReview) {
-            // Use the specialized code review prompt
-            taskText = createCodeReviewPrompt(mergeRequestId);
-        } else if (customPrompt) {
-            // Use custom prompt if provided and not a code review
-            taskText = `${customPrompt}\n\nMerge request title: ${title}\n` +
-                `Merge request description: ${description}\n` +
-                `Comment text: ${commentText}\n`;
-        } else {
-            // Default behavior
-            taskText = `Merge request title: ${title}\n` +
-                `Merge request description: ${description}\n` +
-                `Comment text: ${commentText}\n`;
-        }
-
-        const mcpNote = generateMcpNote({ projectId, mergeRequestId, commentId });
+        // Use GitLabPromptFormatter for rich context
+        const taskText = this.formatter.generatePrompt(
+            this.context,
+            this.fetchedData,
+            customPrompt ?? undefined,
+            useMcp
+        );
 
         const object = {
             textTask: {
-                text: taskText  + (useMcp ? mcpNote : '') + GIT_OPERATIONS_NOTE,
+                text: taskText,
             }
         };
         return JSON.stringify(object);
     }
 
     getTitle(): string {
-        return this.mergeRequest.title;
+        return this.fetchedData.mergeRequest?.title ?? "Merge Request";
     }
 
     generateMrIntro(outcome: string | null): string {
@@ -218,9 +185,11 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
 
 export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
     public readonly success = true;
+    private readonly formatter = new GitLabPromptFormatter();
 
     constructor(
         public readonly context: MergeRequestEventContext,
+        public readonly fetchedData: FetchedData,
     ) { }
 
     get checkoutBranch(): string {
@@ -228,37 +197,26 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
     }
 
     generateJuniePrompt(useMcp: boolean): string {
-        const { projectId, mrEventId, mrEventTitle, mrEventDescription, cliOptions: { customPrompt } } = this.context;
+        const { cliOptions: { customPrompt } } = this.context;
 
-        // Check if this is a code review request
-        const isCodeReview = customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt);
-
-        let taskText: string;
-        if (isCodeReview) {
-            // Use the specialized code review prompt
-            taskText = createCodeReviewPrompt(mrEventId);
-        } else if (customPrompt) {
-            // Use custom prompt if provided and not a code review
-            taskText = `${customPrompt}\n\nMerge request title: ${mrEventTitle}\n` +
-                `Merge request description: ${mrEventDescription}\n`;
-        } else {
-            // Default: review the MR
-            taskText = `Merge request title: ${mrEventTitle}\n` +
-                `Merge request description: ${mrEventDescription}\n`;
-        }
-
-        const mcpNote = generateMcpNote({ projectId, mergeRequestId: mrEventId });
+        // Use GitLabPromptFormatter for rich context
+        const taskText = this.formatter.generatePrompt(
+            this.context,
+            this.fetchedData,
+            customPrompt ?? undefined,
+            useMcp
+        );
 
         const object = {
             textTask: {
-                text: taskText  + (useMcp ? mcpNote : '') + GIT_OPERATIONS_NOTE,
+                text: taskText,
             }
         };
         return JSON.stringify(object);
     }
 
     getTitle(): string {
-        return this.context.mrEventTitle;
+        return this.fetchedData.mergeRequest?.title ?? this.context.mrEventTitle;
     }
 
     generateMrIntro(outcome: string | null): string {
