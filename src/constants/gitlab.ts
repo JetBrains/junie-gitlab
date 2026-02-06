@@ -51,7 +51,7 @@ export function generateMcpNote(params: { projectId: number; issueId?: number; m
     note += SUMMARY_POSTING_NOTE;
 
     // Add thread reply note for MR comments (discussions)
-    if (params.mergeRequestId !== undefined && params.commentId !== undefined) {
+    if (params.mergeRequestId && params.commentId) {
         note += THREAD_REPLY_NOTE;
     }
 
