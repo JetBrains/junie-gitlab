@@ -27,6 +27,7 @@ export const GIT_OPERATIONS_NOTE = "\n\nIMPORTANT: Do NOT commit or push changes
 
 // MCP integration
 const SUMMARY_POSTING_NOTE = "\n\nIMPORTANT: Do NOT post your summary as a comment. The summary will be posted automatically by the system.";
+const THREAD_REPLY_NOTE = "\n\nIMPORTANT: If you are responding to a question in an existing discussion thread (user tagged you in <user_instruction> in Discussion #...), DO NOT use MCP tools to create new comments - your response will be automatically posted as a reply in that thread.";
 
 /**
  * Generates MCP note with project/issue/MR identifiers
@@ -48,6 +49,11 @@ export function generateMcpNote(params: { projectId: number; issueId?: number; m
     }
 
     note += SUMMARY_POSTING_NOTE;
+
+    // Add thread reply note for MR comments (discussions)
+    if (params.mergeRequestId && params.commentId) {
+        note += THREAD_REPLY_NOTE;
+    }
 
     return note;
 }

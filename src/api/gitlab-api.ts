@@ -7,7 +7,7 @@ const apiHost = (new URL(webhookEnv.apiV4Url.value!)).origin;
 const token = webhookEnv.gitlabToken.value!;
 logger.info(`Using GitLab API host: ${apiHost}`);
 
-const api = new Gitlab({
+export const api = new Gitlab({
     host: apiHost,
     token: token,
 });
