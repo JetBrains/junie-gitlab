@@ -6,6 +6,7 @@ import {
     recursivelyGetAllProjectTokens,
     api
 } from "./api/gitlab-api.js";
+import {execSync} from "child_process";
 import {GitLabDataFetcher} from "./api/gitlab-data-fetcher.js";
 import {
     addAllToGit,
@@ -41,6 +42,16 @@ export async function execute(context: GitLabExecutionContext) {
         logger.info('Installing Junie CLI...');
         const output = runCommand('npm i -g @jetbrains/junie-cli' + (context.junieVersion ? '@' + context.junieVersion : ''));
         logger.info(output.trim());
+
+        // Configure glab authentication
+        try {
+            const glabHost = (new URL(context.apiV4Url)).origin;
+            logger.info(`Configuring glab authentication for ${glabHost}`);
+            execSync(`glab auth login -h ${glabHost} -t ${context.gitlabToken}`, {stdio: 'inherit'});
+            logger.info("glab authentication configured successfully");
+        } catch (error) {
+            logger.error("Failed to configure glab authentication:", error);
+        }
 
         logger.info(`Using MCP: ${context.useMcp ? 'yes' : 'no'}`);
         if (context.useMcp) {
