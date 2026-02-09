@@ -83,7 +83,7 @@ Your task is to analyze CI failures and suggest fixes WITHOUT implementing them.
 2. If NO failed jobs were found:
    - Submit ONLY the following message:
    ---
-   ## ✅ CI Status
+   ## CI Status
 
    No failed checks found for this pipeline. All CI checks have passed or are still running.
    ---
@@ -101,7 +101,7 @@ Your task is to analyze CI failures and suggest fixes WITHOUT implementing them.
 
 ### Output Format
 ---
-## 🔴 CI Failure Analysis
+## CI Failure Analysis
 
 **Failed Job:** [job name]
 **Pipeline:** ${pipelineId}
@@ -117,7 +117,7 @@ Your task is to analyze CI failures and suggest fixes WITHOUT implementing them.
 [1-3 sentences explaining why this failed]
 
 ${mergeRequestId ? '### Correlation with MR Changes\n[Explain which files/changes in this MR likely caused the failure, or state if it appears unrelated]\n' : '### Analysis\n[Explain the likely cause and whether this is related to recent changes]\n'}
-## 🔧 Suggested Fix
+## Suggested Fix
 
 ### What needs to change
 [Clear description of the fix approach]

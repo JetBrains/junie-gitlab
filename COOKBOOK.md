@@ -228,52 +228,8 @@ junie-run:
 1. Write `@junie fix-ci` in any MR comment where tests have failed
 2. Junie finds the most recent **failed** pipeline for the MR (skips running/pending pipelines)
 3. Uses GitLab MCP tools to:
-   - Get all jobs from the pipeline (`gitlab.list_pipeline_jobs`)
-   - Retrieve logs from failed jobs (`gitlab.get_pipeline_job_output`)
-   - Get MR diff to correlate failures (`gitlab.get_merge_request_diffs`)
+   - Get all jobs from the pipeline
+   - Retrieve logs from failed jobs
+   - Get MR diff to correlate failures
 4. Analyzes errors, determines root cause, and correlates with MR changes
 5. Posts a detailed analysis with suggested fixes
-
-**Example output format:**
-
-```markdown
-## 🔴 CI Failure Analysis
-
-**Failed Job:** test:unit
-**Pipeline:** #12345
-**Failed Stage:** test
-**Error Type:** test failure
-
-### Error Details
-```
-TypeError: Cannot read property 'name' of undefined
-  at UserService.getUsername (src/services/user.ts:42)
-```
-
-### Root Cause
-The test is failing because the mock user object doesn't have a 'profile' property,
-but the code expects it to exist.
-
-### Correlation with MR Changes
-The change in `src/services/user.ts:42` added a new check for `user.profile.name`,
-but the test mock wasn't updated to include the `profile` object.
-
-## 🔧 Suggested Fix
-
-### What needs to change
-Update the test mock to include the missing `profile` object with a `name` property.
-
-### Files to modify
-- `test/services/user.test.ts:15`: Add `profile` object to mock user
-
-### Code changes
-```typescript
-const mockUser = {
-  id: 1,
-  email: 'test@example.com',
-  profile: { name: 'Test User' }  // Add this
-}
-```
-```
-
----
