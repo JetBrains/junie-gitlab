@@ -197,3 +197,83 @@ junie-run:
 4. Provides comprehensive review summary
 
 ---
+
+## 2. On-Demand CI Failure Analysis (fix-ci)
+
+**Problem:** When pipelines fail, developers need to investigate logs, identify root causes, and figure out fixes. This is time-consuming and can block progress, especially for complex test failures or obscure build errors.
+
+**Solution:** Junie analyzes failed pipelines on-demand, identifies the root cause, and suggests specific fixes when you mention it in a comment.
+
+Trigger CI failure analysis by mentioning Junie in MR comments:
+
+```
+@junie fix-ci
+```
+
+**Requirements:**
+- Complete [Initial Configuration](#initial-configuration) (run `junie-init` once)
+- Make sure `junie-run` job is configured (see [Basic Interactive Setup](#basic-interactive-setup))
+- **Important:** Add MCP support to your `junie-run` job for better analysis:
+
+```yaml
+junie-run:
+  # ... other configuration ...
+  variables:
+    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
+    USE_MCP: "true"  # Required for pipeline analysis
+    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # MCP requires Claude model
+```
+
+**How it works:**
+1. Write `@junie fix-ci` in any MR comment where tests have failed
+2. Junie finds the most recent **failed** pipeline for the MR (skips running/pending pipelines)
+3. Uses GitLab MCP tools to:
+   - Get all jobs from the pipeline (`gitlab.list_pipeline_jobs`)
+   - Retrieve logs from failed jobs (`gitlab.get_pipeline_job_output`)
+   - Get MR diff to correlate failures (`gitlab.get_merge_request_diffs`)
+4. Analyzes errors, determines root cause, and correlates with MR changes
+5. Posts a detailed analysis with suggested fixes
+
+**Example output format:**
+
+```markdown
+## 🔴 CI Failure Analysis
+
+**Failed Job:** test:unit
+**Pipeline:** #12345
+**Failed Stage:** test
+**Error Type:** test failure
+
+### Error Details
+```
+TypeError: Cannot read property 'name' of undefined
+  at UserService.getUsername (src/services/user.ts:42)
+```
+
+### Root Cause
+The test is failing because the mock user object doesn't have a 'profile' property,
+but the code expects it to exist.
+
+### Correlation with MR Changes
+The change in `src/services/user.ts:42` added a new check for `user.profile.name`,
+but the test mock wasn't updated to include the `profile` object.
+
+## 🔧 Suggested Fix
+
+### What needs to change
+Update the test mock to include the missing `profile` object with a `name` property.
+
+### Files to modify
+- `test/services/user.test.ts:15`: Add `profile` object to mock user
+
+### Code changes
+```typescript
+const mockUser = {
+  id: 1,
+  email: 'test@example.com',
+  profile: { name: 'Test User' }  // Add this
+}
+```
+```
+
+---
