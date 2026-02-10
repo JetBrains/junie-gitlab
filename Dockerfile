@@ -27,12 +27,11 @@ WORKDIR /app
 RUN apt update && apt install -y git openssh-client tree curl
 RUN mkdir /junieCache
 
-# Install glab (GitLab CLI)
-RUN curl -L https://gitlab.com/gitlab-org/cli/-/releases/v1.49.1/downloads/glab_1.49.1_Linux_x86_64.tar.gz -o glab.tar.gz && \
-    tar -xzf glab.tar.gz && \
-    mv bin/glab /usr/local/bin/glab && \
-    rm -rf glab.tar.gz bin && \
-    chmod +x /usr/local/bin/glab
+# Install glab (GitLab CLI) via APT
+RUN curl -sSL "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository" | bash && \
+    apt-get update && \
+    apt-get install -y glab && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy minimal runtime artifacts
 COPY --from=builder /app/node_modules ./node_modules

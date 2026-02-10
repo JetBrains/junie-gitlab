@@ -7,6 +7,7 @@ import {
     api
 } from "./api/gitlab-api.js";
 import {execSync} from "child_process";
+import * as fs from "fs";
 import {GitLabDataFetcher} from "./api/gitlab-data-fetcher.js";
 import {
     addAllToGit,
@@ -18,7 +19,7 @@ import {
 } from "./api/git-api.js";
 import {
     FailedTaskExtractionResult,
-    IssueCommentTask,
+    IssueCommentTask, JunieTask,
     MergeRequestCommentTask,
     MergeRequestEventTask,
     TaskExtractionResult
@@ -47,7 +48,7 @@ export async function execute(context: GitLabExecutionContext) {
         try {
             const glabHost = (new URL(context.apiV4Url)).origin;
             logger.info(`Configuring glab authentication for ${glabHost}`);
-            execSync(`glab auth login -h ${glabHost} -t ${context.gitlabToken}`, {stdio: 'inherit'});
+            execSync(`echo "${context.gitlabToken}" | glab auth login --hostname ${glabHost} --stdin`, {stdio: 'inherit'});
             logger.info("glab authentication configured successfully");
         } catch (error) {
             logger.error("Failed to configure glab authentication:", error);
@@ -70,7 +71,8 @@ export async function execute(context: GitLabExecutionContext) {
             await checkoutBranch(branchToPull);
         }
 
-        const resultJson = runJunie(taskExtractionResult.generateJuniePrompt(context.useMcp), context.junieApiKey, context.junieModel, context.junieGuidelinesFilename);
+        const junieTask = taskExtractionResult.generateJuniePrompt(context.useMcp);
+        const resultJson = runJunie(junieTask, context.junieApiKey, context.junieModel, context.junieGuidelinesFilename);
         logger.debug("Full output: " + resultJson.trim());
         const result = JSON.parse(resultJson);
 
@@ -178,23 +180,31 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
     return new FailedTaskExtractionResult(`Unsupported event: ${JSON.stringify(context)}`);
 }
 
-function runJunie(prompt: string, apiKey: string, model: string | null, guidelinesFilename: string | null): string {
+function runJunie(junieTask: JunieTask, apiKey: string, model: string | null, guidelinesFilename: string | null): string {
     const token = apiKey;
     runCommand(`mkdir -p ${cacheDir}`);
-    logger.debug(`Running Junie with prompt: '${prompt}'`);
+    logger.debug(`Running Junie with task (length: ${junieTask.task?.length ?? 0})`);
+
+    // Write task to file to avoid ARG_MAX limit for large prompts
+    const junieInputFile = `${cacheDir}/junie_input.json`;
+    const junieOutputFile = `${cacheDir}/junie_output.json`;
+
+    fs.writeFileSync(junieInputFile, JSON.stringify(junieTask, null, 2));
+    logger.debug(`Junie input written to: ${junieInputFile}`);
+
     try {
-        const extraEnv = [
-            {
-                key: "EJ_TASK",
-                value: prompt,
-            }
-        ];
         const modelArg = model ? ` --model="${model}"` : "";
         const guidelinesArg = guidelinesFilename ? ` --guidelines-file="${guidelinesFilename}"` : "";
-        return runCommand(
-            `junie --auth "${token}" --cache-dir="${cacheDir}" --output-format="json"${modelArg}${guidelinesArg}`,
-            extraEnv,
+
+        // Read from file via stdin to avoid ARG_MAX limit
+        runCommand(
+            `junie --auth "${token}" --cache-dir="${cacheDir}" --output-format="json" --input-format="json" --json-output-file="${junieOutputFile}"${modelArg}${guidelinesArg} < "${junieInputFile}"`,
         );
+
+        // Read output from file
+        const output = fs.readFileSync(junieOutputFile, 'utf-8');
+        logger.debug(`Junie output read from: ${junieOutputFile}`);
+        return output;
     } catch (e) {
         logger.error("Failed to run Junie", e);
         throw e;
