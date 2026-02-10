@@ -57,8 +57,8 @@ export class GitLabPromptFormatter {
                     return sanitizeContent(reviewPrompt + mcpNote + GIT_OPERATIONS_NOTE);
                 }
 
-                userInstruction = this.getUserInstructionForMRComment(mrContext, customPrompt, fetchedData);
-                mrOrIssueInfo = this.getMRInfo(fetchedData);
+                userInstruction = this.getUserInstructionForMRComment(mrContext, customPrompt);
+                mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
                 commitsInfo = this.getCommitsInfo(fetchedData);
                 discussionsInfo = this.getDiscussionsInfo(fetchedData);
                 changedFilesInfo = this.getChangedFilesInfo(fetchedData);
@@ -66,7 +66,7 @@ export class GitLabPromptFormatter {
                 // Issue comment
                 const issueContext = context as IssueCommentEventContext;
                 userInstruction = this.getUserInstructionForIssueComment(issueContext, customPrompt);
-                mrOrIssueInfo = this.getIssueInfo(fetchedData);
+                mrOrIssueInfo = this.getIssueInfo(fetchedData, userInstruction);
                 discussionsInfo = this.getDiscussionsInfo(fetchedData);
             }
         } else if (context.eventKind === 'merge_request') {
@@ -86,7 +86,7 @@ export class GitLabPromptFormatter {
             }
 
             userInstruction = this.getUserInstructionForMREvent(mrEventContext, customPrompt);
-            mrOrIssueInfo = this.getMRInfo(fetchedData);
+            mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
             commitsInfo = this.getCommitsInfo(fetchedData);
             discussionsInfo = this.getDiscussionsInfo(fetchedData);
             changedFilesInfo = this.getChangedFilesInfo(fetchedData);
@@ -138,8 +138,7 @@ ${mcpNote}${GIT_OPERATIONS_NOTE}
 
     private getUserInstructionForMRComment(
         context: MergeRequestCommentEventContext,
-        customPrompt?: string,
-        fetchedData?: FetchedData
+        customPrompt?: string
     ): string {
         let instruction: string;
 
@@ -196,7 +195,7 @@ Pipeline ID: ${context.pipelineId}
 </actor>`;
     }
 
-    private getMRInfo(fetchedData: FetchedData): string | undefined {
+    private getMRInfo(fetchedData: FetchedData, userInstruction?: string): string | undefined {
         const mr = fetchedData.mergeRequest;
         if (!mr) return undefined;
 
@@ -204,9 +203,18 @@ Pipeline ID: ${context.pipelineId}
             ? `Base SHA: ${mr.diff_refs.base_sha}\nHead SHA: ${mr.diff_refs.head_sha}`
             : '';
 
+        // Add MR description only if it's not already in userInstruction (to avoid duplication)
+        const shouldIncludeDescription = mr.description &&
+                                         mr.description.trim().length > 0 &&
+                                         (!userInstruction || !userInstruction.includes(mr.description));
+
+        const descriptionSection = shouldIncludeDescription
+            ? `\nDescription:\n${mr.description}`
+            : '';
+
         return `<merge_request_info>
 MR !${mr.iid}
-Title: ${mr.title}
+Title: ${mr.title}${descriptionSection}
 Author: @${mr.author.username}
 State: ${mr.state}
 Branch: ${mr.source_branch} -> ${mr.target_branch}
@@ -218,13 +226,22 @@ ${mr.draft || mr.work_in_progress ? 'Draft: Yes' : ''}
 </merge_request_info>`;
     }
 
-    private getIssueInfo(fetchedData: FetchedData): string | undefined {
+    private getIssueInfo(fetchedData: FetchedData, userInstruction?: string): string | undefined {
         const issue = fetchedData.issue;
         if (!issue) return undefined;
 
+        // Add issue description only if it's not already in userInstruction (to avoid duplication)
+        const shouldIncludeDescription = issue.description &&
+                                         issue.description.trim().length > 0 &&
+                                         (!userInstruction || !userInstruction.includes(issue.description));
+
+        const descriptionSection = shouldIncludeDescription
+            ? `\nDescription:\n${issue.description}`
+            : '';
+
         return `<issue_info>
 Issue #${issue.iid}
-Title: ${issue.title}
+Title: ${issue.title}${descriptionSection}
 Author: @${issue.author.username}
 State: ${issue.state}
 Labels: ${issue.labels.join(', ') || 'none'}
