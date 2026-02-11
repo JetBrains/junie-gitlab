@@ -202,7 +202,7 @@ junie-run:
 
 **Problem:** When pipelines fail, developers need to investigate logs, identify root causes, and figure out fixes. This is time-consuming and can block progress, especially for complex test failures or obscure build errors.
 
-**Solution:** Junie analyzes failed pipelines on-demand, identifies the root cause, and suggests specific fixes when you mention it in a comment.
+**Solution:** Junie analyzes failed pipelines on-demand, identifies the root cause, and implements fixes when you mention it in a comment.
 
 Trigger CI failure analysis by mentioning Junie in MR comments:
 
@@ -232,4 +232,4 @@ junie-run:
    - Retrieve logs from failed jobs
    - Get MR diff to correlate failures
 4. Analyzes errors, determines root cause, and correlates with MR changes
-5. Posts a detailed analysis with suggested fixes
+5. Implements the fixes automatically (or provides analysis if uncertain)

@@ -21,7 +21,7 @@ When all the variables are set, you can add a `.gitlab-ci.yml` file:
 After completing the setup, check out the [COOKBOOK.md](./COOKBOOK.md) for ready-to-use examples:
 - 🚀 **Basic Interactive Setup** - Respond to `@junie` mentions in MRs and issues
 - 🔍 **Automated Code Review** - Automatic or on-demand code reviews with inline comments
-- 🔧 **CI Failure Analysis (fix-ci)** - On-demand analysis of failed pipelines with suggested fixes
+- 🔧 **CI Failure Analysis (fix-ci)** - On-demand analysis and automatic fixing of failed pipelines
 - 📚 **Real-world recipes** - Copy-paste configurations for common workflows
 
 ### Additional parameters
