@@ -22,6 +22,7 @@ After completing the setup, check out the [COOKBOOK.md](./COOKBOOK.md) for ready
 - 🚀 **Basic Interactive Setup** - Respond to `@junie` mentions in MRs and issues
 - 🔍 **Automated Code Review** - Automatic or on-demand code reviews with inline comments
 - 🔧 **CI Failure Analysis (fix-ci)** - On-demand analysis of failed pipelines with suggested fixes
+- 🛠️ **Minor Fix Requests (minor-fix)** - Make small, focused changes to MRs with specific instructions
 - 📚 **Real-world recipes** - Copy-paste configurations for common workflows
 
 ### Additional parameters
