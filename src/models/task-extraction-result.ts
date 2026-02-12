@@ -265,12 +265,15 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
 
 export class FixCITask implements SuccessfulTaskExtractionResult {
     public readonly success = true;
-    public readonly checkoutBranch = null;
 
     constructor(
         public readonly context: MergeRequestCommentEventContext,
         public readonly pipelineId: number,
     ) { }
+
+    get checkoutBranch(): string {
+        return this.context.mergeRequestSourceBranch;
+    }
 
     generateJuniePrompt(useMcp: boolean): string {
         const { projectId, mergeRequestId } = this.context;
