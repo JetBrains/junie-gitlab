@@ -6,11 +6,13 @@ import {
     MergeRequestNoteRequest
 } from "./feedback-request.js";
 import {
+    createFixCIFailuresPrompt,
     JUNIE_STARTED_MESSAGE,
     JUNIE_FINISHED_PREFIX,
     JUNIE_NO_CHANGES_MESSAGE,
     MR_LINK_PREFIX,
     MR_INTRO_HEADER,
+    generateMcpNote,
 } from "../constants/gitlab.js";
 import {IssueCommentEventContext, MergeRequestCommentEventContext, MergeRequestEventContext} from "../context.js";
 import {GitLabPromptFormatter} from "../utils/gitlab-prompt-formatter.js";
@@ -254,6 +256,88 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
             new MergeRequestNoteRequest(
                 projectId,
                 mrEventId,
+                message.trim()
+            ),
+        ];
+    }
+
+}
+
+export class FixCITask implements SuccessfulTaskExtractionResult {
+    public readonly success = true;
+
+    constructor(
+        public readonly context: MergeRequestCommentEventContext,
+        public readonly pipelineId: number,
+    ) { }
+
+    get checkoutBranch(): string {
+        return this.context.mergeRequestSourceBranch;
+    }
+
+    generateJuniePrompt(useMcp: boolean): string {
+        const { projectId, mergeRequestId } = this.context;
+
+        // Generate fix-ci prompt
+        const taskText = createFixCIFailuresPrompt(
+            projectId,
+            this.pipelineId,
+            mergeRequestId
+        );
+
+        const mcpNote = generateMcpNote({
+            projectId,
+            mergeRequestId
+        });
+
+        const object = {
+            textTask: {
+                text: taskText + (useMcp ? mcpNote : ''),
+            }
+        };
+        return JSON.stringify(object);
+    }
+
+    getTitle(): string {
+        return `Fix CI failures in pipeline #${this.pipelineId}`;
+    }
+
+    generateMrIntro(outcome: string | null): string {
+        return MR_INTRO_HEADER + (outcome ?? "");
+    }
+
+    generateExecutionStartedFeedback(): FeedbackRequest[] {
+        const { projectId, mergeRequestId } = this.context;
+
+        return [
+            new MergeRequestNoteRequest(
+                projectId,
+                mergeRequestId,
+                JUNIE_STARTED_MESSAGE
+            ),
+        ];
+    }
+
+    generateExecutionFinishedFeedback(outcome: string | null, taskName: string | null, createdMrUrl: string | null): FeedbackRequest[] {
+        const { projectId, mergeRequestId } = this.context;
+
+        let message = JUNIE_FINISHED_PREFIX;
+
+        if (createdMrUrl) {
+            message += MR_LINK_PREFIX + createdMrUrl;
+        } else if (outcome) {
+            if (taskName) {
+                message += `**Task:** ${taskName}\n\n`;
+            }
+            message += outcome;
+        } else {
+            message += JUNIE_NO_CHANGES_MESSAGE;
+        }
+
+        return [
+            new MergeRequestNoteRequest(
+                projectId,
+                mergeRequestId,
                 message.trim()
             ),
         ];

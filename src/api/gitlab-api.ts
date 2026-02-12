@@ -219,3 +219,27 @@ export async function createProjectHook(
     logger.debug(`Creating webhook for project ${projectId} with URL ${url}`);
     return await api.ProjectHooks.add(projectId, url, options);
 }
+
+/**
+ * Finds the most recent failed pipeline for a merge request
+ * Useful for fix-ci feature when triggered via comment (to avoid analyzing the Junie pipeline itself)
+ * Skips running/pending pipelines as they might be the current Junie pipeline
+ */
+export async function getLastCompletedPipelineForMR(projectId: number, mergeRequestId: number) {
+    logger.debug(`Fetching pipelines for MR ${mergeRequestId} in project ${projectId}`);
+
+    // Get all pipelines for this MR (already sorted by ID descending - newest first)
+    const pipelines = await api.MergeRequests.allPipelines(projectId, mergeRequestId);
+
+    // Find the most recent FAILED pipeline
+    // Skip running/pending/created pipelines as they might be the current Junie pipeline
+    const failedPipeline = pipelines.find(p => p.status === 'failed');
+
+    if (failedPipeline) {
+        logger.debug(`Found failed pipeline ${failedPipeline.id}`);
+        return failedPipeline;
+    }
+
+    logger.warn(`No failed pipelines found for MR ${mergeRequestId}`);
+    return null;
+}

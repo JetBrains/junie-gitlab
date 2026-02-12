@@ -197,3 +197,39 @@ junie-run:
 4. Provides comprehensive review summary
 
 ---
+
+## 2. On-Demand CI Failure Analysis (fix-ci)
+
+**Problem:** When pipelines fail, developers need to investigate logs, identify root causes, and figure out fixes. This is time-consuming and can block progress, especially for complex test failures or obscure build errors.
+
+**Solution:** Junie analyzes failed pipelines on-demand, identifies the root cause, and implements fixes when you mention it in a comment.
+
+Trigger CI failure analysis by mentioning Junie in MR comments:
+
+```
+@junie fix-ci
+```
+
+**Requirements:**
+- Complete [Initial Configuration](#initial-configuration) (run `junie-init` once)
+- Make sure `junie-run` job is configured (see [Basic Interactive Setup](#basic-interactive-setup))
+- **Important:** Add MCP support to your `junie-run` job for better analysis:
+
+```yaml
+junie-run:
+  # ... other configuration ...
+  variables:
+    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
+    USE_MCP: "true"  # Required for pipeline analysis
+    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # MCP requires Claude model
+```
+
+**How it works:**
+1. Write `@junie fix-ci` in any MR comment where tests have failed
+2. Junie finds the most recent **failed** pipeline for the MR (skips running/pending pipelines)
+3. Uses GitLab MCP tools to:
+   - Get all jobs from the pipeline
+   - Retrieve logs from failed jobs
+   - Get MR diff to correlate failures
+4. Analyzes errors, determines root cause, and correlates with MR changes
+5. Implements the fixes automatically (or provides analysis if uncertain)
