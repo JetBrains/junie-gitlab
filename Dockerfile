@@ -24,8 +24,14 @@ FROM node:24-trixie AS runner
 WORKDIR /app
 
 # simple-git requires the git CLI in the image
-RUN apt update && apt install -y git openssh-client tree
+RUN apt update && apt install -y git openssh-client tree curl
 RUN mkdir /junieCache
+
+# Install glab (GitLab CLI) via APT
+RUN curl -sSL "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository" | bash && \
+    apt-get update && \
+    apt-get install -y glab && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy minimal runtime artifacts
 COPY --from=builder /app/node_modules ./node_modules
