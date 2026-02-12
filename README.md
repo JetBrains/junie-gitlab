@@ -21,6 +21,7 @@ When all the variables are set, you can add a `.gitlab-ci.yml` file:
 After completing the setup, check out the [COOKBOOK.md](./COOKBOOK.md) for ready-to-use examples:
 - 🚀 **Basic Interactive Setup** - Respond to `@junie` mentions in MRs and issues
 - 🔍 **Automated Code Review** - Automatic or on-demand code reviews with inline comments
+- 🔧 **CI Failure Analysis (fix-ci)** - On-demand analysis and automatic fixing of failed pipelines
 - 📚 **Real-world recipes** - Copy-paste configurations for common workflows
 
 ### Additional parameters
@@ -86,6 +87,18 @@ When the "code-review" phrase is detected, Junie will:
 - Review the code according to repository style and best practices
 - Post inline comments with suggestions using GitLab MCP tools (if available)
 - Provide a comprehensive review summary
+
+**CI Failure Analysis (fix-ci) Feature:**
+
+To trigger CI failure analysis:
+- **Manual trigger**: Write "fix-ci" in a comment on an MR with failed tests (requires `junie-init` to be run first)
+
+When "fix-ci" is triggered, Junie will:
+- Find the most recent failed pipeline for the MR
+- Analyze failed job logs to identify error messages and stack traces
+- Determine the root cause (test failure, build error, lint issue, etc.)
+- Correlate failures with MR changes
+- Suggest specific fixes with code snippets
 
 ## Documentation
 

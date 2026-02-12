@@ -47,7 +47,7 @@ export async function initialize() {
             {
                 name: "Junie",
                 description: "Junie webhook",
-                issuesEvents: true,
+                issuesEvents: false,
                 noteEvents: true,
                 mergeRequestsEvents: true,
                 pushEvents: false,

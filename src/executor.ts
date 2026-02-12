@@ -2,6 +2,7 @@ import {runCommand} from "./utils/commands.js";
 import {
     createMergeRequest,
     deletePipeline,
+    getLastCompletedPipelineForMR,
     getUserById,
     recursivelyGetAllProjectTokens,
     api
@@ -20,6 +21,7 @@ import {
 import {
     FailedTaskExtractionResult,
     IssueCommentTask, JunieTask,
+    FixCITask,
     MergeRequestCommentTask,
     MergeRequestEventTask,
     TaskExtractionResult
@@ -33,6 +35,7 @@ import {
     isMergeRequestCommentEvent,
     isMergeRequestEvent
 } from "./context.js";
+import {FIX_CI_TRIGGER_PHRASE_REGEXP} from "./constants/gitlab.js";
 
 const cacheDir = "/junieCache";
 
@@ -151,6 +154,23 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
         const hasMention = await checkTextForJunieMention(projectId, context.commentText, junieBotTaggingPattern);
         if (!hasMention) {
             return new FailedTaskExtractionResult("Comment doesn't contain mention to Junie");
+        }
+
+        // Check if this is a fix-ci request
+        const isFixCIInPrompt = customPrompt && FIX_CI_TRIGGER_PHRASE_REGEXP.test(customPrompt);
+        const isFixCIInComment = FIX_CI_TRIGGER_PHRASE_REGEXP.test(context.commentText);
+        const isFixCI = isFixCIInPrompt || isFixCIInComment;
+
+        if (isFixCI) {
+            // Find the last failed pipeline for this MR
+            const pipeline = await getLastCompletedPipelineForMR(projectId, context.mergeRequestId);
+
+            if (!pipeline) {
+                return new FailedTaskExtractionResult("No failed pipelines found for this MR");
+            }
+
+            // Create a FixCITask with the MR comment context and found pipeline ID
+            return new FixCITask(context, pipeline.id);
         }
 
         // Fetch rich MR data with commits, discussions, and changes
