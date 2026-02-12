@@ -32,7 +32,7 @@ export interface JunieTask {
 
 export interface SuccessfulTaskExtractionResult {
     success: true;
-    checkoutBranch: string | null;
+    checkoutBranch: string;
     generateJuniePrompt(useMcp: boolean): Promise<JunieTask>;
     getTitle(): string;
     generateMrIntro(outcome: string | null): string;
@@ -42,12 +42,12 @@ export interface SuccessfulTaskExtractionResult {
 
 export class IssueCommentTask implements SuccessfulTaskExtractionResult {
     public readonly success = true;
-    public readonly checkoutBranch = null;
     private readonly formatter = new GitLabPromptFormatter();
 
     constructor(
         public readonly context: IssueCommentEventContext,
         public readonly fetchedData: FetchedData,
+        public readonly checkoutBranch: string,
     ) {}
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {

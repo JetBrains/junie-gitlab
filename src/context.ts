@@ -10,7 +10,6 @@ export type MREventAction = 'open' | 'update' | 'reopen' | 'close' | 'merge';
  * Configuration options passed from CLI
  */
 export interface CLIOptions {
-    cleanupAfterIdleRun?: boolean;
     mrMode: 'append' | 'new';
     customPrompt: string | null;
 }
@@ -39,6 +38,9 @@ interface BaseGitLabContext {
 
     // CLI options
     cliOptions: CLIOptions;
+
+    // Job execution runtime info
+    junieProjectId: number;
 }
 
 /**
@@ -130,6 +132,9 @@ export function extractGitLabContext(cliOptions: CLIOptions): GitLabExecutionCon
 
         // CLI options
         cliOptions,
+
+        // Job execution runtime info
+        junieProjectId: webhookEnv.junieProjectId.value!,
     };
 
     let context: GitLabExecutionContext;

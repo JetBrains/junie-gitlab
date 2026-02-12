@@ -36,11 +36,12 @@ export const webhookEnv = {
     useMcp: new BooleanVariable("USE_MCP", "true"),
     junieModel: new StringVariable("JUNIE_MODEL"),
     junieGuidelinesFilename: new StringVariable("JUNIE_GUIDELINES_FILENAME"),
+    junieProjectId: new NumericVariable("CI_PROJECT_ID"),
 
     apiV4Url: new StringVariable("CI_API_V4_URL"),
     defaultBranch: new StringVariable("CI_DEFAULT_BRANCH"),
 
-    projectId: new NumericVariable("CI_PROJECT_ID"),
+    projectId: new NumericVariable("PROJECT_ID", "{{project.id}}"),
     projectName: new StringVariable("CI_PROJECT_NAME"),
     pipelineId: new NumericVariable("CI_PIPELINE_ID"),
 
