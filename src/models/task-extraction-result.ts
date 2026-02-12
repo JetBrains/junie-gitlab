@@ -270,7 +270,7 @@ export class FixCITask implements SuccessfulTaskExtractionResult {
         return this.context.mergeRequestSourceBranch;
     }
 
-    generateJuniePrompt(useMcp: boolean): string {
+    generateJuniePrompt(useMcp: boolean): JunieTask {
         const { projectId, mergeRequestId } = this.context;
 
         // Generate fix-ci prompt
@@ -285,12 +285,9 @@ export class FixCITask implements SuccessfulTaskExtractionResult {
             mergeRequestId
         });
 
-        const object = {
-            textTask: {
-                text: taskText + (useMcp ? mcpNote : ''),
-            }
+        return {
+            task: taskText + (useMcp ? mcpNote : ''),
         };
-        return JSON.stringify(object);
     }
 
     getTitle(): string {
