@@ -267,3 +267,12 @@ export function isNoteEvent(
 ): context is IssueCommentEventContext | MergeRequestCommentEventContext {
     return context.eventKind === 'note';
 }
+
+export function isMRCommandEvent(command: RegExp, context: MergeRequestCommentEventContext, customPrompt?: string) {
+    const isCommandInPrompt = customPrompt && command.test(customPrompt);
+    const isCommandInComment = command.test(context.commentText);
+    const result = isCommandInPrompt || isCommandInComment;
+    console.log(`Is MR command ${command} event: ${result}`);
+    return result;
+
+}

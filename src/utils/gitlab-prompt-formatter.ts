@@ -4,6 +4,7 @@ import {
     isIssueCommentEvent,
     isMergeRequestCommentEvent,
     isMergeRequestEvent,
+    isMRCommandEvent,
     IssueCommentEventContext,
     MergeRequestCommentEventContext,
     MergeRequestEventContext
@@ -11,7 +12,9 @@ import {
 import {
     CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
     createCodeReviewPrompt,
+    createFixCIFailuresPrompt,
     createMinorFixPrompt,
+    FIX_CI_TRIGGER_PHRASE_REGEXP,
     generateMcpNote,
     GIT_OPERATIONS_NOTE,
     MINOR_FIX_ACTION,
@@ -19,6 +22,7 @@ import {
 } from "../constants/gitlab.js";
 import {sanitizeContent} from "./sanitizer.js";
 import {DiscussionSchema} from '@gitbeaker/core';
+import {getLastCompletedPipelineForMR} from "../api/gitlab-api.js";
 
 /**
  * GitLab Prompt Formatter - similar to GitHub's NewGitHubPromptFormatter
@@ -29,13 +33,13 @@ export class GitLabPromptFormatter {
     /**
      * Generates the final prompt with all notes appended
      */
-    generatePrompt(
+    async generatePrompt(
         context: GitLabExecutionContext,
         fetchedData: FetchedData,
         customPrompt?: string,
         useMcp: boolean = false
-    ): string {
-        const prompt = this.buildPrompt(context, fetchedData, customPrompt);
+    ): Promise<string> {
+        const prompt = await this.buildPrompt(context, fetchedData, customPrompt);
         const mcpNote = this.getMcpNote(context, useMcp);
         return sanitizeContent(prompt + mcpNote + GIT_OPERATIONS_NOTE);
     }
@@ -43,11 +47,11 @@ export class GitLabPromptFormatter {
     /**
      * Builds the main prompt without appending notes
      */
-    private buildPrompt(
+    private async buildPrompt(
         context: GitLabExecutionContext,
         fetchedData: FetchedData,
         customPrompt?: string
-    ): string {
+    ): Promise<string> {
         const repositoryInfo = this.getRepositoryInfo(context);
         const actorInfo = this.getActorInfo(context);
 
@@ -59,12 +63,7 @@ export class GitLabPromptFormatter {
 
         // Handle different event types
         if (isMergeRequestCommentEvent(context)) {
-            // Check if this is a minor-fix request
-            const isMinorFix = customPrompt
-                ? MINOR_FIX_TRIGGER_PHRASE_REGEXP.test(customPrompt)
-                : MINOR_FIX_TRIGGER_PHRASE_REGEXP.test(context.commentText);
-
-            if (isMinorFix) {
+            if (isMRCommandEvent(MINOR_FIX_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
                 // Extract user request from comment text
                 const userRequest = this.extractMinorFixRequest(
                     customPrompt || context.commentText
@@ -76,26 +75,30 @@ export class GitLabPromptFormatter {
                 );
             }
 
-            // Check if this is a code review request
-            const isCodeReview = customPrompt
-                ? CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt)
-                : CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(context.commentText);
-
-            if (isCodeReview) {
+            if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
                 // Use specialized code review prompt
                 return createCodeReviewPrompt(context.mergeRequestId);
             }
 
+            if (isMRCommandEvent(FIX_CI_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
+                const pipeline = await getLastCompletedPipelineForMR(context.projectId, context.mergeRequestId);
+
+                return createFixCIFailuresPrompt(
+                    context.projectId,
+                    pipeline?.id,
+                    context.mergeRequestId
+                );
+            }
+
             userInstruction = this.getUserInstructionForMRComment(context, customPrompt);
-            mrOrIssueInfo = this.getMRInfo(fetchedData);
+            mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
             commitsInfo = this.getCommitsInfo(fetchedData);
             discussionsInfo = this.getDiscussionsInfo(fetchedData);
             changedFilesInfo = this.getChangedFilesInfo(fetchedData);
         } else if (isIssueCommentEvent(context)) {
             userInstruction = this.getUserInstructionForIssueComment(context, customPrompt);
-            mrOrIssueInfo = this.getIssueInfo(fetchedData);
+            mrOrIssueInfo = this.getIssueInfo(fetchedData, userInstruction);
             discussionsInfo = this.getDiscussionsInfo(fetchedData);
-
         } else if (isMergeRequestEvent(context)) {
             // Check if this is a code review request
             const isCodeReview = customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt);
@@ -105,7 +108,7 @@ export class GitLabPromptFormatter {
             }
 
             userInstruction = this.getUserInstructionForMREvent(context, customPrompt);
-            mrOrIssueInfo = this.getMRInfo(fetchedData);
+            mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
             commitsInfo = this.getCommitsInfo(fetchedData);
             discussionsInfo = this.getDiscussionsInfo(fetchedData);
             changedFilesInfo = this.getChangedFilesInfo(fetchedData);
@@ -193,8 +196,8 @@ Pipeline ID: ${context.pipelineId}
 
         // Add MR description only if it's not already in userInstruction (to avoid duplication)
         const shouldIncludeDescription = mr.description &&
-                                         mr.description.trim().length > 0 &&
-                                         (!userInstruction || !userInstruction.includes(mr.description));
+            mr.description.trim().length > 0 &&
+            (!userInstruction || !userInstruction.includes(mr.description));
 
         const descriptionSection = shouldIncludeDescription
             ? `\nDescription:\n${mr.description}`
@@ -220,8 +223,8 @@ ${mr.draft || mr.work_in_progress ? 'Draft: Yes' : ''}
 
         // Add issue description only if it's not already in userInstruction (to avoid duplication)
         const shouldIncludeDescription = issue.description &&
-                                         issue.description.trim().length > 0 &&
-                                         (!userInstruction || !userInstruction.includes(issue.description));
+            issue.description.trim().length > 0 &&
+            (!userInstruction || !userInstruction.includes(issue.description));
 
         const descriptionSection = shouldIncludeDescription
             ? `\nDescription:\n${issue.description}`

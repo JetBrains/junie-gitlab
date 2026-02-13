@@ -118,15 +118,17 @@ Submit a brief summary of the changes you made and why they address the user's r
  * @param mergeRequestId - Optional merge request IID if this is an MR pipeline
  * @returns The formatted fix-ci prompt
  */
-export function createFixCIFailuresPrompt(projectId: number, pipelineId: number, mergeRequestId?: number): string {
+export function createFixCIFailuresPrompt(projectId: number, pipelineId?: number, mergeRequestId?: number): string {
     return `
 Your task is to analyze CI failures and fix them. Follow these steps:
 
 ### Steps to follow
 1. Gather Information
+${pipelineId ? `
    - Use 'gitlab.list_pipeline_jobs' tool with projectId=${projectId} and pipelineId=${pipelineId} to get all jobs
    - Identify which jobs have failed (status: 'failed')
    - For each failed job, use 'gitlab.get_pipeline_job_output' tool with projectId=${projectId} and jobId to retrieve the job logs
+   ` : ""}
    ${mergeRequestId ? `- Use 'gitlab.get_merge_request_diffs' tool with projectId=${projectId} and mergeRequestIid=${mergeRequestId} to get the MR diff` : ''}
 
 2. If NO failed jobs were found:
