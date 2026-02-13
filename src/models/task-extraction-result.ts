@@ -28,10 +28,14 @@ export class FailedTaskExtractionResult {
     }
 }
 
+export interface JunieTask {
+    task?: string;
+}
+
 export interface SuccessfulTaskExtractionResult {
     success: true;
     checkoutBranch: string | null;
-    generateJuniePrompt(useMcp: boolean): string;
+    generateJuniePrompt(useMcp: boolean): JunieTask;
     getTitle(): string;
     generateMrIntro(outcome: string | null): string;
     generateExecutionStartedFeedback(): FeedbackRequest[];
@@ -48,7 +52,7 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
         public readonly fetchedData: FetchedData,
     ) {}
 
-    generateJuniePrompt(useMcp: boolean): string {
+    generateJuniePrompt(useMcp: boolean): JunieTask {
         const { cliOptions: { customPrompt } } = this.context;
 
         // Use GitLabPromptFormatter for rich context
@@ -59,12 +63,9 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
             useMcp
         );
 
-        const object = {
-            textTask: {
-                text: taskText,
-            }
+        return {
+            task: taskText
         };
-        return JSON.stringify(object);
     }
 
     getTitle(): string {
@@ -118,7 +119,7 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
         return this.context.mergeRequestSourceBranch;
     }
 
-    generateJuniePrompt(useMcp: boolean): string {
+    generateJuniePrompt(useMcp: boolean): JunieTask {
         const { cliOptions: { customPrompt } } = this.context;
 
         // Use GitLabPromptFormatter for rich context
@@ -129,12 +130,9 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
             useMcp
         );
 
-        const object = {
-            textTask: {
-                text: taskText,
-            }
+        return {
+            task: taskText
         };
-        return JSON.stringify(object);
     }
 
     getTitle(): string {
@@ -198,7 +196,7 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
         return this.context.mrEventSourceBranch;
     }
 
-    generateJuniePrompt(useMcp: boolean): string {
+    generateJuniePrompt(useMcp: boolean): JunieTask {
         const { cliOptions: { customPrompt } } = this.context;
 
         // Use GitLabPromptFormatter for rich context
@@ -209,12 +207,9 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
             useMcp
         );
 
-        const object = {
-            textTask: {
-                text: taskText,
-            }
+        return {
+            task: taskText
         };
-        return JSON.stringify(object);
     }
 
     getTitle(): string {
@@ -265,14 +260,17 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
 
 export class FixCITask implements SuccessfulTaskExtractionResult {
     public readonly success = true;
-    public readonly checkoutBranch = null;
 
     constructor(
         public readonly context: MergeRequestCommentEventContext,
         public readonly pipelineId: number,
     ) { }
 
-    generateJuniePrompt(useMcp: boolean): string {
+    get checkoutBranch(): string {
+        return this.context.mergeRequestSourceBranch;
+    }
+
+    generateJuniePrompt(useMcp: boolean): JunieTask {
         const { projectId, mergeRequestId } = this.context;
 
         // Generate fix-ci prompt
@@ -287,12 +285,9 @@ export class FixCITask implements SuccessfulTaskExtractionResult {
             mergeRequestId
         });
 
-        const object = {
-            textTask: {
-                text: taskText + (useMcp ? mcpNote : ''),
-            }
+        return {
+            task: taskText + (useMcp ? mcpNote : ''),
         };
-        return JSON.stringify(object);
     }
 
     getTitle(): string {

@@ -120,7 +120,7 @@ Submit a brief summary of the changes you made and why they address the user's r
  */
 export function createFixCIFailuresPrompt(projectId: number, pipelineId: number, mergeRequestId?: number): string {
     return `
-Your task is to analyze CI failures and suggest fixes WITHOUT implementing them. Follow these steps:
+Your task is to analyze CI failures and fix them. Follow these steps:
 
 ### Steps to follow
 1. Gather Information
@@ -139,46 +139,64 @@ Your task is to analyze CI failures and suggest fixes WITHOUT implementing them.
 
 3. If failed jobs WERE found, analyze each failure:
    - Open and explore relevant source files to understand the context
-   - Do NOT run tests, build, or make any modifications to the codebase.
    - Identify the failing step and error message.
    - Determine the root cause (test failure, build error, linting issue, timeout, flaky test, etc.)
    ${mergeRequestId ? '- Correlate the error with changes in the MR diff.' : '- Determine if the failure is related to recent changes or a pre-existing issue'}
    ${mergeRequestId ? '- Determine if the failure is related to the MR diff or a pre-existing issue' : ''}
-   - Do not use the 'gitlab.create_merge_request_thread' tool. Suggest changes only as shown in the template below.
 
-4. Submit your analysis using EXACTLY the output format described below. You MUST always follow this template structure precisely, do not add an extra section or change the format.
+4. Implement the Fix
+   - Make the necessary changes to fix the CI failures.
+   - Keep changes minimal and focused on fixing the specific failures.
+   - Follow the existing code style and conventions in the repository.
+   - Do NOT make unrelated changes or "improvements" beyond what is needed to fix the CI.
 
-### Output Format
----
-## CI Failure Analysis
+5. Validation
+   - Ensure your changes compile/build successfully.
+   - Run relevant tests if applicable.
+   - Verify the fix addresses the CI failure. If you are unsure, revert any change made in this session.
 
-**Failed Job:** [job name]
-**Pipeline:** ${pipelineId}
-**Failed Stage:** [stage name if identifiable]
-**Error Type:** [test failure / build error / lint error / timeout / other]
+### Guidelines
+- **Scope**: Only make changes directly related to fixing the CI failures. Do not refactor or "improve" unrelated code.
+- **Style**: Match the existing code style, naming conventions, and patterns in the repository.
+- **Safety**: Be conservative with changes. When in doubt, make the smaller change.
+- **Testing**: If you modify logic, ensure existing tests still pass. Add tests only if explicitly needed.
+- **Certainty**: Do NOT apply any changes unless you are 100% certain the CI checks will pass after your fix. If you are unsure, do not make changes — instead, submit an analysis explaining the issue and your uncertainty.
 
-### Error Details
-\`\`\`
-[relevant error message/stack trace - keep concise]
-\`\`\`
+### Output
+- DO NOT post inline comments.
+- When you have fixed CI failures, submit your response using EXACTLY this format:
+    ---
+    ## CI Fix Applied
 
-### Root Cause
-[1-3 sentences explaining why this failed]
+    **Fixed Job:** [name of the CI job that was failing]
+    **Error Type:** [test failure / build error / lint error / timeout / other]
 
-${mergeRequestId ? '### Correlation with MR Changes\n[Explain which files/changes in this MR likely caused the failure, or state if it appears unrelated]\n' : '### Analysis\n[Explain the likely cause and whether this is related to recent changes]\n'}
-## Suggested Fix
+    ### Root Cause
+    [1-3 sentences explaining why this failed]
 
-### What needs to change
-[Clear description of the fix approach]
+    ### Changes Made
+    - \`path/to/file.ts\`: [brief description of what was changed]
+    - [additional files if applicable]
 
-### Files to modify
-- \`File.ts:Line:\`: [what needs to change and why]
+    ### Verification
+    [Confirm that build passes and tests succeed, or describe what was verified]
+    ---
+- If you did NOT make changes due to uncertainty or errors, submit your response using this format instead:
+    ---
+    ## CI Analysis (No Changes Made)
 
-### Code changes
-\`\`\`[language]
-// Suggested code snippet or pseudocode
-\`\`\`
----
+    **Failed Job:** [name of the CI job that was failing]
+    **Error Type:** [test failure / build error / lint error / timeout / other]
+
+    ### Root Cause
+    [1-3 sentences explaining why this failed]
+
+    ### Why No Fix Was Applied
+    [Explain your uncertainty and why you chose not to make changes]
+
+    ### Suggested Investigation
+    [What the developer should look into to resolve this]
+    ---
 `;
 }
 
