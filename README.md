@@ -4,17 +4,28 @@ Wrapper for Junie CLI for GitLab environment.
 
 ## Setup
 
-Before using this it's necessary to set a few environment variables in a current GitLab project:
+To use Junie in your instance of GitLab, you need to set up a separate GitLab project for it.
 
-+ `JUNIE_API_KEY` – a permanent Junie API key. May be found at [https://junie.jetbrains.com/cli](https://junie.jetbrains.com/cli)
-+ `GITLAB_TOKEN_FOR_JUNIE` - GitLab API token with `api` and `write_repository` scopes.
-If you use the auto-cleanup feature (see below), you'll need to set its role to "Owner" (otherwise it won't be able to delete finished jobs).
+Let's do that step-by-step:
 
-> If you're using GitLab 17.1+ (especially if it's gitlab.com – probably it will also be necessary to manually allow setting pipeline variables: open "CI/CD Settings" -> "Variables" and make sure that NOT the option "No one allowed" is chosen there)
+1. Create a new project, e.g. "Junie Workspace"
+2. In the CI/CD settings you need to create two new variables:
+   1. `JUNIE_API_KEY` with an auth token for Junie (usually starts with `perm-`)
+   2. `GITLAB_TOKEN_FOR_JUNIE` a "master" token for GitLab that will be used for automated projects initialization. It must have enough permissions to manage other projects (e.g. to create new webhooks and to generate project access tokens) and to create new trigger tokens in this new Junie's project. *⚠️ Please limit this variable visibility to `init` environment only, so that it will be used for pipelines initialization and cleanup only and will NOT leak to pipelines created for actual Junie jobs.*
+3. Copy the [.gitlab-ci.yml](./script-sample.yaml) file from this repository to the root of the new project in a default branch.
 
-When all the variables are set, you can add a `.gitlab-ci.yml` file:
+Then you need to "initialize" projects that will use Junie.
+Initialization means that for such a project:
 
-+ If you don't have one yet, you can use [our template](./script-sample.yaml)
+1. A new webhook will be created that will trigger a pipeline with Junie in the Junie Workspace project.
+2. A new project-level access token will be generated and stored in the project's settings. Every new pipeline in the Junie Workspace project will be triggered with this token.
+3. A new trigger token for Junie Workspace project will be generated and stored in the newly created webhook parameters.
+
+The good news is that you can initialize projects automatically!
+In the Junie Workspace project, open the "Pipelines" tab and create a new one by clicking "New pipeline."
+At this step it will ask you to enter the `PROJECTS_TO_INIT` variable – just paste a comma-separated list of projects IDs to initialize and run it.
+After successful completion all the needed webhooks and tokens will be created automatically for requested projects.
+
 
 ## Usage Examples & Recipes
 
