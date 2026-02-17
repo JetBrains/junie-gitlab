@@ -53,6 +53,17 @@ If you change the bot name from "junie" to something else (e.g., "mybot"), you n
 
 See detailed comments at the top of `script-sample.yaml` for instructions.
 
+## Features
+
+### 📎 Attachment Support
+
+Junie automatically downloads and processes attachments from GitLab markdown content:
+
+- **How it works**:
+  - Detects GitLab upload URLs (e.g., `/uploads/abc123/image.png`)
+  - Downloads attachments to local temporary storage
+  - Replaces URLs with local file paths in prompts
+
 ## Commands
 
 ### `init`

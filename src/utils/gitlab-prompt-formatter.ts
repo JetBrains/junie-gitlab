@@ -23,6 +23,7 @@ import {
 import {sanitizeContent} from "./sanitizer.js";
 import {DiscussionSchema} from '@gitbeaker/core';
 import {getLastCompletedPipelineForMR} from "../api/gitlab-api.js";
+import {processMarkdownAttachments} from "./attachment-downloader.js";
 
 /**
  * GitLab Prompt Formatter - similar to GitHub's NewGitHubPromptFormatter
@@ -32,6 +33,7 @@ export class GitLabPromptFormatter {
 
     /**
      * Generates the final prompt with all notes appended
+     * Processes attachments in the final prompt
      */
     async generatePrompt(
         context: GitLabExecutionContext,
@@ -41,7 +43,20 @@ export class GitLabPromptFormatter {
     ): Promise<string> {
         const prompt = await this.buildPrompt(context, fetchedData, customPrompt);
         const mcpNote = this.getMcpNote(context, useMcp);
-        return sanitizeContent(prompt + mcpNote + GIT_OPERATIONS_NOTE);
+        const fullPrompt = prompt + mcpNote + GIT_OPERATIONS_NOTE;
+
+        // Extract GitLab host from apiV4Url
+        const gitlabHost = (new URL(context.apiV4Url)).origin;
+
+        // Process attachments in the complete prompt
+        const processedPrompt = await processMarkdownAttachments(
+            fullPrompt,
+            context.projectId,
+            gitlabHost,
+            context.gitlabToken
+        );
+
+        return sanitizeContent(processedPrompt);
     }
 
     /**
