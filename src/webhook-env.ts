@@ -37,12 +37,10 @@ export const webhookEnv = {
     junieModel: new StringVariable("JUNIE_MODEL"),
     junieGuidelinesFilename: new StringVariable("JUNIE_GUIDELINES_FILENAME"),
     junieProjectId: new NumericVariable("CI_PROJECT_ID"),
+    junieProjectDefaultBranch: new StringVariable("CI_DEFAULT_BRANCH"),
 
     apiV4Url: new StringVariable("CI_API_V4_URL"),
-    defaultBranch: new StringVariable("CI_DEFAULT_BRANCH"),
-
     projectId: new NumericVariable("PROJECT_ID", "{{project.id}}"),
-    projectName: new StringVariable("CI_PROJECT_NAME"),
     pipelineId: new NumericVariable("CI_PIPELINE_ID"),
 
     eventKind: new StringVariable("EVENT_KIND", "{{object_kind}}"),

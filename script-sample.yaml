@@ -83,15 +83,10 @@ junie-cleanup:
   environment: init
   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /#junie(\s|$)/i'
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && (($COMMENT_TEXT =~ /#junie(\s|$)/i && $DELETE_PIPELINE == "true") || $COMMENT_TEXT !~ /#junie(\s|$)/i)'
       when: on_success
     - when: never
-  script: |
-    if [ "$DELETE_PIPELINE" == "true" ]
-    then
-      node /app/dist/cli.js cleanup
-    else
-      echo "Pipeline deletion not needed"
-    fi
+  script:
+    - node /app/dist/cli.js cleanup
   dependencies:
     - junie-run

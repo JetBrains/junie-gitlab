@@ -11,7 +11,7 @@ import {AccessLevel} from "@gitbeaker/rest";
 export async function initialize(projectIds: number[]) {
 
     const apiV4Url = webhookEnv.apiV4Url.value!;
-    const defaultBranch = webhookEnv.defaultBranch.value!;
+    const junieProjectDefaultBranch = webhookEnv.junieProjectDefaultBranch.value!;
 
     const junieProjectId = webhookEnv.junieProjectId.value!;
     logger.info(`Initializing Junie CLI in project ${junieProjectId}`);
@@ -63,7 +63,7 @@ export async function initialize(projectIds: number[]) {
             );
             logger.info(`Generated PAT "${pat.name}" with id ${pat.id} and expiration date ${pat.expires_at}`);
 
-            const webhookUrl = `${apiV4Url}/projects/${junieProjectId}/trigger/pipeline?ref=${defaultBranch}&token={trigger_token}&inputs[project_token]={project_token}`;
+            const webhookUrl = `${apiV4Url}/projects/${junieProjectId}/trigger/pipeline?ref=${junieProjectDefaultBranch}&token={trigger_token}&inputs[project_token]={project_token}`;
 
             const template: WebhookTemplate = {
                 variables: {},

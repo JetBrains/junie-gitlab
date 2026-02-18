@@ -43,8 +43,7 @@ export async function execute(context: GitLabExecutionContext) {
     const taskExtractionResult = await extractTaskFromEnv(context);
 
     if (taskExtractionResult.success) {
-        const project = await getProjectById(context.projectId);
-        const projectPath = project.path_with_namespace;
+        const projectPath = context.projectPathWithNamespace;
         logger.info('Installing Junie CLI...');
         const output = runCommand('npm i -g @jetbrains/junie-cli' + (context.junieVersion ? '@' + context.junieVersion : ''));
         logger.info(output.trim());

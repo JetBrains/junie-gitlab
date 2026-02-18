@@ -62,7 +62,7 @@ program
         }
 
         // Extract GitLab context from environment and CLI options
-        const context = extractGitLabContext({
+        const context = await extractGitLabContext({
             mrMode: mrMode,
             customPrompt: customPrompt ?? null,
         });
