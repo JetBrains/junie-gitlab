@@ -4,7 +4,7 @@ import {
     deletePipeline,
     getUserById,
     recursivelyGetAllProjectTokens,
-    api, getProjectById
+    api
 } from "./api/gitlab-api.js";
 import {execSync} from "child_process";
 import * as fs from "fs";
@@ -33,7 +33,6 @@ import {
     isMergeRequestCommentEvent,
     isMergeRequestEvent
 } from "./context.js";
-import {FIX_CI_TRIGGER_PHRASE_REGEXP} from "./constants/gitlab.js";
 import {writeToFile} from "./utils/io.js";
 
 const cacheDir = "/junieCache";
