@@ -10,6 +10,10 @@ export const FIX_CI_ACTION = "fix-ci";
 
 export const FIX_CI_TRIGGER_PHRASE_REGEXP = new RegExp(FIX_CI_ACTION, 'i');
 
+export const MINOR_FIX_ACTION = "minor-fix";
+
+export const MINOR_FIX_TRIGGER_PHRASE_REGEXP = new RegExp(MINOR_FIX_ACTION, 'i');
+
 // ============================================================================
 // Templates and Messages
 // ============================================================================
@@ -63,21 +67,68 @@ export function generateMcpNote(params: { projectId: number; issueId?: number; m
 }
 
 /**
+ * Creates a minor-fix prompt for making small changes to a merge request
+ * @param projectId - The GitLab project ID
+ * @param mergeRequestId - The merge request IID
+ * @param userRequest - Optional user request (text after "minor-fix")
+ * @returns The formatted minor-fix prompt
+ */
+export function createMinorFixPrompt(projectId: number, mergeRequestId: number, userRequest?: string): string {
+    const userRequestSection = userRequest
+        ? `\n### User Request\nThe user has specifically requested: "${userRequest}"\nFocus on addressing this request while following all the guidelines below.\n`
+        : '';
+    const gatherInfoUserRequestNote = userRequest
+        ? `\n   - Focus specifically on understanding what "${userRequest}" means in the context of this MR. Identify the relevant files, functions, or code sections that relate to this request.`
+        : '';
+
+    return `
+Your task is to make a minor fix to this Merge Request based on the user's request.
+${userRequestSection}
+### Steps to follow
+1. Gather Information
+   - Use 'gitlab.get_merge_request_diffs' tool with projectId=${projectId} and mergeRequestIid=${mergeRequestId} to get the MR diff
+   - Understand the context of the changes and what the MR is trying to accomplish.${gatherInfoUserRequestNote}
+
+2. Implement the Fix
+   - Make the requested changes to the codebase.
+   - Keep changes minimal and focused on the specific request.
+   - Follow the existing code style and conventions in the repository.
+   - Do NOT make unrelated changes or "improvements" beyond what was requested.
+
+3. Validation
+   - Ensure your changes compile/build successfully.
+   - Run relevant tests if applicable.
+   - Verify the fix addresses the user's request.
+
+### Guidelines
+- **Scope**: Only make changes directly related to the user's request. Do not refactor or "improve" unrelated code.
+- **Style**: Match the existing code style, naming conventions, and patterns in the repository.
+- **Safety**: Be conservative with changes. When in doubt, make the smaller change.
+- **Testing**: If you modify logic, ensure existing tests still pass. Add tests only if explicitly requested.
+
+### Output
+Submit a brief summary of the changes you made and why they address the user's request.
+`;
+}
+
+/**
  * Creates a fix-ci prompt for analyzing failed GitLab CI/CD pipelines
  * @param projectId - The GitLab project ID
  * @param pipelineId - The pipeline ID that failed
  * @param mergeRequestId - Optional merge request IID if this is an MR pipeline
  * @returns The formatted fix-ci prompt
  */
-export function createFixCIFailuresPrompt(projectId: number, pipelineId: number, mergeRequestId?: number): string {
+export function createFixCIFailuresPrompt(projectId: number, pipelineId?: number, mergeRequestId?: number): string {
     return `
 Your task is to analyze CI failures and fix them. Follow these steps:
 
 ### Steps to follow
 1. Gather Information
+${pipelineId ? `
    - Use 'gitlab.list_pipeline_jobs' tool with projectId=${projectId} and pipelineId=${pipelineId} to get all jobs
    - Identify which jobs have failed (status: 'failed')
    - For each failed job, use 'gitlab.get_pipeline_job_output' tool with projectId=${projectId} and jobId to retrieve the job logs
+   ` : ""}
    ${mergeRequestId ? `- Use 'gitlab.get_merge_request_diffs' tool with projectId=${projectId} and mergeRequestIid=${mergeRequestId} to get the MR diff` : ''}
 
 2. If NO failed jobs were found:

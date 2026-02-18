@@ -233,3 +233,51 @@ junie-run:
    - Get MR diff to correlate failures
 4. Analyzes errors, determines root cause, and correlates with MR changes
 5. Implements the fixes automatically (or provides analysis if uncertain)
+
+---
+
+## 3. Minor Fix Requests (minor-fix)
+
+**Problem:** Reviewers often request small changes during code review - renaming variables, fixing typos, adjusting formatting, or making minor logic tweaks. These small tasks can be tedious and time-consuming.
+
+**Solution:** Junie can make small, focused changes to merge requests on-demand when you mention it with specific instructions.
+
+Trigger minor fixes by mentioning Junie in MR comments with your request:
+
+```
+@junie minor-fix rename userId to customerId
+@junie minor-fix add input validation for email field
+@junie minor-fix fix typo in error message
+```
+
+**Requirements:**
+- Complete [Initial Configuration](#initial-configuration) (run `junie-init` once)
+- Make sure `junie-run` job is configured (see [Basic Interactive Setup](#basic-interactive-setup))
+- **Important:** Add MCP support to your `junie-run` job for better MR analysis:
+
+```yaml
+junie-run:
+  # ... other configuration ...
+  variables:
+    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
+    USE_MCP: "true"  # Required for MR diff analysis
+    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # MCP requires Claude model
+```
+
+**How it works:**
+1. Write `@junie minor-fix <your request>` in any MR comment
+2. Junie retrieves the MR diff using GitLab MCP tools
+3. Understands the context and identifies relevant files
+4. Makes the requested changes to the codebase
+5. The system automatically commits and pushes the changes
+
+**Examples:**
+- `@junie minor-fix rename the function processData to handleUserData`
+- `@junie minor-fix add error handling for null values in the login method`
+- `@junie minor-fix update the comment to explain the algorithm better`
+
+**Guidelines:**
+- Keep requests small and focused (one or two changes at a time)
+- Be specific about what needs to change
+- Junie will follow existing code style and conventions
+- Changes are committed automatically - no manual git operations needed

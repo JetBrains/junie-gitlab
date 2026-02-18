@@ -1,6 +1,10 @@
 import {FetchedData} from "../api/gitlab-data-fetcher.js";
 import {
     GitLabExecutionContext,
+    isIssueCommentEvent,
+    isMergeRequestCommentEvent,
+    isMergeRequestEvent,
+    isMRCommandEvent,
     IssueCommentEventContext,
     MergeRequestCommentEventContext,
     MergeRequestEventContext
@@ -8,11 +12,17 @@ import {
 import {
     CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
     createCodeReviewPrompt,
+    createFixCIFailuresPrompt,
+    createMinorFixPrompt,
+    FIX_CI_TRIGGER_PHRASE_REGEXP,
     generateMcpNote,
-    GIT_OPERATIONS_NOTE
+    GIT_OPERATIONS_NOTE,
+    MINOR_FIX_ACTION,
+    MINOR_FIX_TRIGGER_PHRASE_REGEXP
 } from "../constants/gitlab.js";
 import {sanitizeContent} from "./sanitizer.js";
 import {DiscussionSchema} from '@gitbeaker/core';
+import {getLastCompletedPipelineForMR} from "../api/gitlab-api.js";
 
 /**
  * GitLab Prompt Formatter - similar to GitHub's NewGitHubPromptFormatter
@@ -20,12 +30,28 @@ import {DiscussionSchema} from '@gitbeaker/core';
  */
 export class GitLabPromptFormatter {
 
-    generatePrompt(
+    /**
+     * Generates the final prompt with all notes appended
+     */
+    async generatePrompt(
         context: GitLabExecutionContext,
         fetchedData: FetchedData,
         customPrompt?: string,
         useMcp: boolean = false
-    ): string {
+    ): Promise<string> {
+        const prompt = await this.buildPrompt(context, fetchedData, customPrompt);
+        const mcpNote = this.getMcpNote(context, useMcp);
+        return sanitizeContent(prompt + mcpNote + GIT_OPERATIONS_NOTE);
+    }
+
+    /**
+     * Builds the main prompt without appending notes
+     */
+    private async buildPrompt(
+        context: GitLabExecutionContext,
+        fetchedData: FetchedData,
+        customPrompt?: string
+    ): Promise<string> {
         const repositoryInfo = this.getRepositoryInfo(context);
         const actorInfo = this.getActorInfo(context);
 
@@ -36,92 +62,60 @@ export class GitLabPromptFormatter {
         let changedFilesInfo: string | undefined;
 
         // Handle different event types
-        if (context.eventKind === 'note') {
-            if (context.isMR) {
-                // MR comment
-                const mrContext = context as MergeRequestCommentEventContext;
-
-                // Check if this is a code review request
-                const isCodeReview = customPrompt
-                    ? CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt)
-                    : CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(mrContext.commentText);
-
-                if (isCodeReview) {
-                    // Use specialized code review prompt
-                    const reviewPrompt = createCodeReviewPrompt(mrContext.mergeRequestId);
-                    const mcpNote = useMcp ? generateMcpNote({
-                        projectId: mrContext.projectId,
-                        mergeRequestId: mrContext.mergeRequestId,
-                        commentId: mrContext.commentId
-                    }) : '';
-                    return sanitizeContent(reviewPrompt + mcpNote + GIT_OPERATIONS_NOTE);
-                }
-
-                userInstruction = this.getUserInstructionForMRComment(mrContext, customPrompt);
-                mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
-                commitsInfo = this.getCommitsInfo(fetchedData);
-                discussionsInfo = this.getDiscussionsInfo(fetchedData);
-                changedFilesInfo = this.getChangedFilesInfo(fetchedData);
-            } else {
-                // Issue comment
-                const issueContext = context as IssueCommentEventContext;
-                userInstruction = this.getUserInstructionForIssueComment(issueContext, customPrompt);
-                mrOrIssueInfo = this.getIssueInfo(fetchedData, userInstruction);
-                discussionsInfo = this.getDiscussionsInfo(fetchedData);
+        if (isMergeRequestCommentEvent(context)) {
+            if (isMRCommandEvent(MINOR_FIX_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
+                // Extract user request from comment text
+                const userRequest = this.extractMinorFixRequest(
+                    customPrompt || context.commentText
+                );
+                return createMinorFixPrompt(
+                    context.projectId,
+                    context.mergeRequestId,
+                    userRequest
+                );
             }
-        } else if (context.eventKind === 'merge_request') {
-            // MR event (open, update, etc.)
-            const mrEventContext = context as MergeRequestEventContext;
 
+            if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
+                // Use specialized code review prompt
+                return createCodeReviewPrompt(context.mergeRequestId);
+            }
+
+            if (isMRCommandEvent(FIX_CI_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
+                const pipeline = await getLastCompletedPipelineForMR(context.projectId, context.mergeRequestId);
+
+                return createFixCIFailuresPrompt(
+                    context.projectId,
+                    pipeline?.id,
+                    context.mergeRequestId
+                );
+            }
+
+            userInstruction = this.getUserInstructionForMRComment(context, customPrompt);
+            mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
+            commitsInfo = this.getCommitsInfo(fetchedData);
+            discussionsInfo = this.getDiscussionsInfo(fetchedData);
+            changedFilesInfo = this.getChangedFilesInfo(fetchedData);
+        } else if (isIssueCommentEvent(context)) {
+            userInstruction = this.getUserInstructionForIssueComment(context, customPrompt);
+            mrOrIssueInfo = this.getIssueInfo(fetchedData, userInstruction);
+            discussionsInfo = this.getDiscussionsInfo(fetchedData);
+        } else if (isMergeRequestEvent(context)) {
             // Check if this is a code review request
             const isCodeReview = customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt);
 
             if (isCodeReview) {
-                const reviewPrompt = createCodeReviewPrompt(mrEventContext.mrEventId);
-                const mcpNote = useMcp ? generateMcpNote({
-                    projectId: mrEventContext.projectId,
-                    mergeRequestId: mrEventContext.mrEventId
-                }) : '';
-                return sanitizeContent(reviewPrompt + mcpNote + GIT_OPERATIONS_NOTE);
+                return createCodeReviewPrompt(context.mrEventId);
             }
 
-            userInstruction = this.getUserInstructionForMREvent(mrEventContext, customPrompt);
+            userInstruction = this.getUserInstructionForMREvent(context, customPrompt);
             mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
             commitsInfo = this.getCommitsInfo(fetchedData);
             discussionsInfo = this.getDiscussionsInfo(fetchedData);
             changedFilesInfo = this.getChangedFilesInfo(fetchedData);
         }
 
-        // Build MCP note if enabled
-        let mcpNote = '';
-        if (useMcp) {
-            if (context.eventKind === 'note') {
-                if (context.isMR) {
-                    const mrContext = context as MergeRequestCommentEventContext;
-                    mcpNote = generateMcpNote({
-                        projectId: mrContext.projectId,
-                        mergeRequestId: mrContext.mergeRequestId,
-                        commentId: mrContext.commentId
-                    });
-                } else {
-                    const issueContext = context as IssueCommentEventContext;
-                    mcpNote = generateMcpNote({
-                        projectId: issueContext.projectId,
-                        issueId: issueContext.issueId,
-                        commentId: issueContext.commentId
-                    });
-                }
-            } else if (context.eventKind === 'merge_request') {
-                const mrEventContext = context as MergeRequestEventContext;
-                mcpNote = generateMcpNote({
-                    projectId: mrEventContext.projectId,
-                    mergeRequestId: mrEventContext.mrEventId
-                });
-            }
-        }
-
         // Build the final prompt similar to GitHub
-        const finalPrompt = `You were triggered as a GitLab AI Assistant by ${context.eventKind} event. Your task is to:
+        return `You were triggered as a GitLab AI Assistant by ${context.eventKind} event. Your task is to:
 
 ${userInstruction || ""}
 ${repositoryInfo || ""}
@@ -130,15 +124,12 @@ ${commitsInfo || ""}
 ${discussionsInfo || ""}
 ${changedFilesInfo || ""}
 ${actorInfo || ""}
-${mcpNote}${GIT_OPERATIONS_NOTE}
 `;
-
-        return sanitizeContent(finalPrompt);
     }
 
     private getUserInstructionForMRComment(
         context: MergeRequestCommentEventContext,
-        customPrompt?: string
+        customPrompt?: string,
     ): string {
         let instruction: string;
 
@@ -205,8 +196,8 @@ Pipeline ID: ${context.pipelineId}
 
         // Add MR description only if it's not already in userInstruction (to avoid duplication)
         const shouldIncludeDescription = mr.description &&
-                                         mr.description.trim().length > 0 &&
-                                         (!userInstruction || !userInstruction.includes(mr.description));
+            mr.description.trim().length > 0 &&
+            (!userInstruction || !userInstruction.includes(mr.description));
 
         const descriptionSection = shouldIncludeDescription
             ? `\nDescription:\n${mr.description}`
@@ -232,8 +223,8 @@ ${mr.draft || mr.work_in_progress ? 'Draft: Yes' : ''}
 
         // Add issue description only if it's not already in userInstruction (to avoid duplication)
         const shouldIncludeDescription = issue.description &&
-                                         issue.description.trim().length > 0 &&
-                                         (!userInstruction || !userInstruction.includes(issue.description));
+            issue.description.trim().length > 0 &&
+            (!userInstruction || !userInstruction.includes(issue.description));
 
         const descriptionSection = shouldIncludeDescription
             ? `\nDescription:\n${issue.description}`
@@ -323,5 +314,46 @@ ${note.body}`;
         return `<changed_files>
 ${formattedFiles}
 </changed_files>`;
+    }
+
+    /**
+     * Generates MCP note based on context if MCP is enabled
+     */
+    private getMcpNote(context: GitLabExecutionContext, useMcp: boolean): string {
+        if (!useMcp) {
+            return '';
+        }
+
+        if (isIssueCommentEvent(context)) {
+            return generateMcpNote({
+                projectId: context.projectId,
+                issueId: context.issueId,
+                commentId: context.commentId
+            });
+        } else if (isMergeRequestCommentEvent(context)) {
+            return generateMcpNote({
+                projectId: context.projectId,
+                mergeRequestId: context.mergeRequestId,
+                commentId: context.commentId
+            });
+        } else if (isMergeRequestEvent(context)) {
+            const mrEventContext = context as MergeRequestEventContext;
+            return generateMcpNote({
+                projectId: mrEventContext.projectId,
+                mergeRequestId: mrEventContext.mrEventId
+            });
+        }
+
+        return '';
+    }
+
+    /**
+     * Extracts user request text after "minor-fix" keyword from comment
+     * @param text - The comment text to parse
+     * @returns The extracted user request, or undefined if no text after keyword
+     */
+    private extractMinorFixRequest(text: string): string | undefined {
+        const match = text.match(new RegExp(`${MINOR_FIX_ACTION}\\s+(.+)`, 'i'));
+        return match ? match[1].trim() : undefined;
     }
 }
