@@ -34,6 +34,7 @@ export const webhookEnv = {
     junieBotTaggingPattern: new StringVariable("JUNIE_BOT_TAGGING_PATTERN"),
     junieVersion: new StringVariable("JUNIE_VERSION"),
     useMcp: new BooleanVariable("USE_MCP", "true"),
+    usePipelineRedirect: new BooleanVariable("USE_PIPELINE_REDIRECT", "false"),
     junieModel: new StringVariable("JUNIE_MODEL"),
     junieGuidelinesFilename: new StringVariable("JUNIE_GUIDELINES_FILENAME"),
     junieCustomPrompt: new StringVariable("JUNIE_CUSTOM_PROMPT"),

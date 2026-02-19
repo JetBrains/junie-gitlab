@@ -2,7 +2,7 @@ import {
     AccessTokenSchema, AccessTokenScopes,
     ExpandedGroupSchema,
     ExpandedMergeRequestSchema,
-    Gitlab, IssueNoteSchema, PipelineTriggerTokenSchema,
+    Gitlab, IssueNoteSchema, PipelineTriggerTokenSchema, PipelineVariableSchema,
     ProjectHookSchema, ProjectSchema, UserSchema
 } from '@gitbeaker/rest';
 import {webhookEnv} from "../webhook-env.js";
@@ -83,6 +83,15 @@ export async function createMergeRequest(
 export async function deletePipeline(projectId: number, pipelineId: number): Promise<void> {
     logger.debug(`Deleting pipeline ${pipelineId} from project ${projectId}`);
     return await api.Pipelines.remove(projectId, pipelineId);
+}
+
+export async function runPipeline(
+    projectId: number,
+    ref: string,
+    variables: PipelineVariableSchema[]
+) {
+    logger.debug(`Running pipeline for project ${projectId} on ref ${ref} with variables: ${JSON.stringify(variables || {})}`);
+    return await api.Pipelines.create(projectId, ref, { variables });
 }
 
 async function getAllPaginated<T>(
@@ -276,4 +285,18 @@ export async function createProjectAccessToken(
 ): Promise<AccessTokenExposedSchema> {
     logger.debug(`Creating project access token "${name}" for project ${projectId} with scopes: ${scopes.join(', ')}`);
     return await api.ProjectAccessTokens.create(projectId, name, scopes, expiresAt, { accessLevel, description } as any);
+}
+
+export async function getProjectCiConfigPath(projectId: number): Promise<string | null> {
+    logger.debug(`Fetching CI config path for project ${projectId}`);
+    const project = await api.Projects.show(projectId);
+    return (project.ci_config_path as string | null | undefined) ?? null;
+}
+
+export async function updateProjectCiConfigPath(
+    projectId: number,
+    ciConfigPath: string | null,
+): Promise<ProjectSchema> {
+    logger.debug(`Updating CI config path for project ${projectId} to: ${ciConfigPath}`);
+    return await api.Projects.edit(projectId, { ciConfigPath } as any);
 }

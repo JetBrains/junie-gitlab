@@ -1,0 +1,27 @@
+stages:
+  - junie
+
+junie-run:
+  stage: junie
+  image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
+  script:
+    - rm -rf * .* # clean up the workdir before checking out a remote project
+    - node /app/dist/cli.js run --verbose
+  after_script:
+    - mkdir -p junie-artifacts/working-directory
+    - mkdir -p junie-artifacts/logs
+    - mkdir -p junie-artifacts/sessions
+    - cp -R /junieCache/. ./junie-artifacts/working-directory/ 2>/dev/null || true
+    - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
+    - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
+  variables:
+    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude instead of Gemini for MCP compatibility
+  artifacts:
+    reports:
+      dotenv: junie-artifacts/working-directory/wrapper-outputs.env
+    paths:
+      - junie-artifacts/working-directory
+      - junie-artifacts/logs
+      - junie-artifacts/sessions
+    expire_in: 1 week
+    when: always

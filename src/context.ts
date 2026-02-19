@@ -35,6 +35,7 @@ interface BaseGitLabContext {
     junieModel: string | null;
     junieGuidelinesFilename: string | null;
     useMcp: boolean;
+    usePipelineRedirect: boolean;
     junieBotTaggingPattern: RegExp;
     customPrompt: string | null;
 
@@ -133,6 +134,7 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         junieModel: webhookEnv.junieModel.value,
         junieGuidelinesFilename: webhookEnv.junieGuidelinesFilename.value,
         useMcp: webhookEnv.useMcp.value,
+        usePipelineRedirect: webhookEnv.usePipelineRedirect.value,
         junieBotTaggingPattern,
         customPrompt: webhookEnv.junieCustomPrompt.value,
 

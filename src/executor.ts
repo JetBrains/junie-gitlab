@@ -3,7 +3,7 @@ import {
     createMergeRequest,
     getUserById,
     recursivelyGetAllProjectTokens,
-    api
+    api, getProjectCiConfigPath, getProjectById, updateProjectCiConfigPath, runPipeline
 } from "./api/gitlab-api.js";
 import {execSync} from "child_process";
 import * as fs from "fs";
@@ -33,6 +33,8 @@ import {
     isMergeRequestEvent
 } from "./context.js";
 import {writeToFile} from "./utils/io.js";
+import {Variable, webhookEnv} from "./webhook-env.js";
+import {PipelineVariableSchema} from "@gitbeaker/rest";
 
 const cacheDir = "/junieCache";
 const literalMentions = ['@junie', '#junie'];
@@ -41,6 +43,49 @@ export async function execute(context: GitLabExecutionContext) {
     const taskExtractionResult = await extractTaskFromEnv(context);
 
     if (taskExtractionResult.success) {
+
+        /**
+         * Handle pipeline redirection logic.
+         * If usePipelineRedirect is set to true – it will trigger a pipeline in a user-project instead of continuing
+         * its execution in the current project.
+         */
+        if (context.usePipelineRedirect && context.projectId !== context.junieProjectId) {
+            logger.info(`Redirecting pipeline to Junie project ${context.junieProjectId}`);
+            const originalCiSource = await getProjectCiConfigPath(context.projectId);
+            logger.info(`Original CI config path: ${originalCiSource ? `"${originalCiSource}"` : "[none]"}`);
+            const currentProject = await getProjectById(context.junieProjectId);
+            const targetProject = await getProjectById(context.projectId);
+            const filePath = `child-pipeline.yml@${currentProject.path_with_namespace}`;
+            await updateProjectCiConfigPath(context.projectId, filePath);
+            try {
+                const variables: PipelineVariableSchema[] = [];
+                Object.keys(webhookEnv).forEach(key => {
+                    const value = (webhookEnv as any)[key];
+                    if (value instanceof Variable && value.mappedValue !== null) {
+                        variables.push({key: value.key, value: value.value});
+                    }
+                });
+                variables.push({
+                    key: webhookEnv.junieApiKey.key,
+                    value: webhookEnv.junieApiKey.value!,
+                });
+                variables.push({
+                    key: webhookEnv.gitlabToken.key,
+                    value: webhookEnv.gitlabToken.value!,
+                });
+                await runPipeline(
+                    targetProject.id,
+                    targetProject.default_branch, // ?
+                    variables,
+                );
+            } catch (e) {
+                logger.error("Failed to redirect pipeline", e);
+            } finally {
+                await updateProjectCiConfigPath(context.projectId, originalCiSource);
+            }
+            return;
+        }
+
         const projectPath = context.projectPathWithNamespace;
         logger.info('Installing Junie CLI...');
         const output = runCommand('npm i -g @jetbrains/junie-cli' + (context.junieVersion ? '@' + context.junieVersion : ''));
