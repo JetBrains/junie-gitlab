@@ -1,12 +1,12 @@
 import {
-    AccessTokenSchema,
+    AccessTokenSchema, AccessTokenScopes,
     ExpandedGroupSchema,
     ExpandedMergeRequestSchema,
-    Gitlab, IssueNoteSchema,
+    Gitlab, IssueNoteSchema, PipelineTriggerTokenSchema, PipelineVariableSchema,
     ProjectHookSchema, ProjectSchema, UserSchema
 } from '@gitbeaker/rest';
 import {webhookEnv} from "../webhook-env.js";
-import {IssueSchema} from "@gitbeaker/core";
+import {AccessTokenExposedSchema, IssueSchema} from "@gitbeaker/core";
 import {logger} from "../utils/logging.js";
 
 const apiHost = (new URL(webhookEnv.apiV4Url.value!)).origin;
@@ -83,6 +83,15 @@ export async function createMergeRequest(
 export async function deletePipeline(projectId: number, pipelineId: number): Promise<void> {
     logger.debug(`Deleting pipeline ${pipelineId} from project ${projectId}`);
     return await api.Pipelines.remove(projectId, pipelineId);
+}
+
+export async function runPipeline(
+    projectId: number,
+    ref: string,
+    variables: PipelineVariableSchema[]
+) {
+    logger.debug(`Running pipeline for project ${projectId} on ref ${ref} with variables: ${JSON.stringify(variables || {})}`);
+    return await api.Pipelines.create(projectId, ref, { variables });
 }
 
 async function getAllPaginated<T>(
@@ -214,6 +223,7 @@ export async function createProjectHook(
         description?: string;
         name: string;
         customHeaders?: { key: string; value: string }[];
+        urlVariables?: { key: string; value: string }[];
     }
 ) {
     logger.debug(`Creating webhook for project ${projectId} with URL ${url}`);
@@ -242,4 +252,51 @@ export async function getLastCompletedPipelineForMR(projectId: number, mergeRequ
 
     logger.warn(`No failed pipelines found for MR ${mergeRequestId}`);
     return null;
+}
+
+export async function getAllPipelineTriggerTokens(projectId: number): Promise<PipelineTriggerTokenSchema[]> {
+    logger.debug(`Fetching all pipeline trigger tokens for project ${projectId}`);
+    return await api.PipelineTriggerTokens.all(projectId);
+}
+
+export async function createPipelineTriggerToken(
+    projectId: number,
+    description: string
+): Promise<PipelineTriggerTokenSchema> {
+    logger.debug(`Creating pipeline trigger token for project ${projectId} with description: ${description}`);
+    return await api.PipelineTriggerTokens.create(projectId, description);
+}
+
+export async function deletePipelineTriggerToken(
+    projectId: number,
+    tokenId: number
+): Promise<void> {
+    logger.debug(`Deleting pipeline trigger token ${tokenId} from project ${projectId}`);
+    return await api.PipelineTriggerTokens.remove(projectId, tokenId);
+}
+
+export async function createProjectAccessToken(
+    projectId: number,
+    name: string,
+    description: string | undefined,
+    scopes: AccessTokenScopes[],
+    accessLevel: number,
+    expiresAt: string
+): Promise<AccessTokenExposedSchema> {
+    logger.debug(`Creating project access token "${name}" for project ${projectId} with scopes: ${scopes.join(', ')}`);
+    return await api.ProjectAccessTokens.create(projectId, name, scopes, expiresAt, { accessLevel, description } as any);
+}
+
+export async function getProjectCiConfigPath(projectId: number): Promise<string | null> {
+    logger.debug(`Fetching CI config path for project ${projectId}`);
+    const project = await api.Projects.show(projectId);
+    return (project.ci_config_path as string | null | undefined) ?? null;
+}
+
+export async function updateProjectCiConfigPath(
+    projectId: number,
+    ciConfigPath: string | null,
+): Promise<ProjectSchema> {
+    logger.debug(`Updating CI config path for project ${projectId} to: ${ciConfigPath}`);
+    return await api.Projects.edit(projectId, { ciConfigPath } as any);
 }

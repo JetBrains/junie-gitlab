@@ -1,5 +1,22 @@
+spec:
+  inputs:
+    project_token:
+      type: string
+      default: ""
+---
+
+variables:
+  PROJECTS_TO_INIT:
+    value: ""
+    description: "Comma-separated list of project IDs to initialize"
+  INPUT_TOKEN:
+    value: "$[[ inputs.project_token ]]"
+    description: "Project's access token"
+
+
 stages:
   - junie
+  - cleanup
 
 # =============================================================================
 # Junie Trigger Configuration
@@ -15,25 +32,28 @@ stages:
 #
 # =============================================================================
 
+.trigger-conditions:
+  - &if-junie-note '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /#junie(\s|$)/i'
+  - &if-mr-open '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION == "open"'
+
 junie-init:
   stage: junie
+  environment: init
   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
   script:
-    - node /app/dist/cli.js init --verbose
+    - node /app/dist/cli.js init --verbose $PROJECTS_TO_INIT
   when: manual
   rules:
-    - if: $CI_PIPELINE_SOURCE == "api"
-      when: never
-    - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
+    - when: never
 
 junie-run:
   stage: junie
   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
   script:
-    - node /app/dist/cli.js run --cleanup --verbose
+    - rm -rf * .* # clean up the workdir before checking out a remote project
+    - node /app/dist/cli.js run --verbose
   after_script:
     - mkdir -p junie-artifacts/working-directory
     - mkdir -p junie-artifacts/logs
@@ -42,18 +62,22 @@ junie-run:
     - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
     - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
   rules:
-    # Only run for comment events that mention @junie (case insensitive)
-    # This prevents creating pipelines for every comment
-    # NOTE: Keep this regex in sync with JUNIE_MENTION_TRIGGER variable above
-    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /@junie(\s|$)/i
+    - if: *if-junie-note
       when: always
+    - if: *if-mr-open
+      when: always
+      variables:
+        JUNIE_CUSTOM_PROMPT: "code-review"
     - when: never
   variables:
+    GITLAB_TOKEN_FOR_JUNIE: "$INPUT_TOKEN"
     # Pattern for matching Junie bot mentions inside the wrapper code
     # NOTE: Keep this in sync with JUNIE_MENTION_TRIGGER and the regex in rules above
     JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude instead of Gemini for MCP compatibility
+    JUNIE_MODEL: "claude-sonnet-4-6"  # Use Claude instead of Gemini for MCP compatibility
   artifacts:
+    reports:
+      dotenv: junie-artifacts/working-directory/wrapper-outputs.env
     paths:
       - junie-artifacts/working-directory
       - junie-artifacts/logs
@@ -61,61 +85,18 @@ junie-run:
     expire_in: 1 week
     when: always
 
-# Optional: Automatic code review on every MR update
-# Uncomment this job to enable automatic code review
-junie-auto-code-review:
-  stage: junie
+# Deletes a pipeline if it was an "IDLE" run
+junie-cleanup:
+  stage: cleanup
+  environment: init
   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
-  script:
-    - node /app/dist/cli.js run --prompt "code-review" --verbose
-  after_script:
-    - mkdir -p junie-artifacts/working-directory
-    - mkdir -p junie-artifacts/logs
-    - mkdir -p junie-artifacts/sessions
-    - cp -R /junieCache/. ./junie-artifacts/working-directory/ 2>/dev/null || true
-    - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
-    - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
   rules:
-    # Only run for MR events, skip on close or merge
-    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION != "close" && $MR_EVENT_ACTION != "merge"
-      when: always
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && (($COMMENT_TEXT =~ /#junie(\s|$)/i && $DELETE_PIPELINE == "true") || $COMMENT_TEXT !~ /#junie(\s|$)/i)'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION != "open"'
+      when: on_success
     - when: never
-  variables:
-   USE_MCP: "true"
-   JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude instead of Gemini for MCP compatibility
-  artifacts:
-    paths:
-      - junie-artifacts/working-directory
-      - junie-artifacts/logs
-      - junie-artifacts/sessions
-    expire_in: 1 week
-    when: always
-
-# Optional: Additional custom job with different prompt
-# junie-security-check:
-#   stage: junie
-#   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
-#   script:
-#     - node /app/dist/cli.js run --prompt "Check for security vulnerabilities in the changes" --verbose
-#   after_script:
-#     - mkdir -p junie-artifacts/working-directory
-#     - mkdir -p junie-artifacts/logs
-#     - mkdir -p junie-artifacts/sessions
-#     - cp -R /junieCache/. ./junie-artifacts/working-directory/ 2>/dev/null || true
-#     - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
-#     - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
-#   rules:
-#     # Only run when MR is opened (not on updates)
-#     - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION == "open"
-#       when: always
-#     - when: never
-#   variables:
-#     USE_MCP: "true"
-#   artifacts:
-#     paths:
-#       - junie-artifacts/working-directory
-#       - junie-artifacts/logs
-#       - junie-artifacts/sessions
-#     expire_in: 1 week
-#     when: always
-
+  script:
+    - node /app/dist/cli.js cleanup
+  dependencies:
+    - junie-run

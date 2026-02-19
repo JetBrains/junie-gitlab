@@ -1,10 +1,5 @@
 import {execSync} from "child_process";
-import {readFileSync} from "fs";
 import {logger} from "./logging.js";
-
-export function readFile(path: string): string {
-    return readFileSync(path, 'utf-8');
-}
 
 export function runCommand(command: string, env?: {key: string, value: string}[]): string {
     try {

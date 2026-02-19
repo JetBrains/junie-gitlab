@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - vlad/dedicated-junie-project
 
 jobs:
   build-and-push:
@@ -18,6 +19,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Determine Docker tag
+        id: tag
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/vlad/dedicated-junie-project" ]; then
+            echo "tag=alt" >> $GITHUB_OUTPUT
+          else
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          fi
+
       - name: Log in to JetBrains Space Registry
         uses: docker/login-action@v3
         with:
@@ -31,7 +43,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
+          push: true
+          tags: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:${{ steps.tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

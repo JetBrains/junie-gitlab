@@ -4,22 +4,37 @@ Wrapper for Junie CLI for GitLab environment.
 
 ## Setup
 
-Before using this it's necessary to set a few environment variables in a current GitLab project:
+To use Junie in your instance of GitLab, you need to set up a separate GitLab project for it.
 
-+ `JUNIE_API_KEY` – a permanent Junie API key. May be found at [https://junie.jetbrains.com/cli](https://junie.jetbrains.com/cli)
-+ `GITLAB_TOKEN_FOR_JUNIE` - GitLab API token with `api` and `write_repository` scopes.
-If you use the auto-cleanup feature (see below), you'll need to set its role to "Owner" (otherwise it won't be able to delete finished jobs).
+Let's do that step-by-step:
 
-> If you're using GitLab 17.1+ (especially if it's gitlab.com – probably it will also be necessary to manually allow setting pipeline variables: open "CI/CD Settings" -> "Variables" and make sure that NOT the option "No one allowed" is chosen there)
+1. Create a new project, e.g. "Junie Workspace"
+2. In the CI/CD settings you need to create two new variables:
+   1. `JUNIE_API_KEY` with an auth token for Junie (usually starts with `perm-`)
+   2. `GITLAB_TOKEN_FOR_JUNIE` a "master" token for GitLab that will be used for automated projects initialization. It must have enough permissions to manage other projects (e.g. to create new webhooks and to generate project access tokens) and to create new trigger tokens in this new Junie's project. *⚠️ Please limit this variable visibility to `init` environment only, so that it will be used for pipelines initialization and cleanup only and will NOT leak to pipelines created for actual Junie jobs.*
+      ![](./doc/img/scr02.png)
+3. Copy the [.gitlab-ci.yml](./script-sample.yaml) file from this repository to the root of the new project in a default branch.
 
-When all the variables are set, you can add a `.gitlab-ci.yml` file:
+Then you need to "initialize" projects that will use Junie.
+Initialization means that for such a project:
 
-+ If you don't have one yet, you can use [our template](./script-sample.yaml)
+1. A new webhook will be created that will trigger a pipeline with Junie in the Junie Workspace project.
+2. A new project-level access token will be generated and stored in the project's settings. Every new pipeline in the Junie Workspace project will be triggered with this token.
+3. A new trigger token for Junie Workspace project will be generated and stored in the newly created webhook parameters.
+
+The good news is that you can initialize projects automatically!
+In the Junie Workspace project, open the "Pipelines" tab and create a new one by clicking "New pipeline."
+At this step it will ask you to enter the `PROJECTS_TO_INIT` variable – just paste a comma-separated list of projects IDs to initialize (ignore other suggested inputs) and run it:
+
+![](./doc/img/scr01.png)
+
+After successful completion, all the needed webhooks and tokens will be created automatically for requested projects.
+
 
 ## Usage Examples & Recipes
 
 After completing the setup, check out the [COOKBOOK.md](./COOKBOOK.md) for ready-to-use examples:
-- 🚀 **Basic Interactive Setup** - Respond to `@junie` mentions in MRs and issues
+- 🚀 **Basic Interactive Setup** - Respond to `#junie` mentions in MRs and issues
 - 🔍 **Automated Code Review** - Automatic or on-demand code reviews with inline comments
 - 🔧 **CI Failure Analysis (fix-ci)** - On-demand analysis and automatic fixing of failed pipelines
 - 🛠️ **Minor Fix Requests (minor-fix)** - Make small, focused changes to MRs with specific instructions
@@ -29,36 +44,19 @@ After completing the setup, check out the [COOKBOOK.md](./COOKBOOK.md) for ready
 
 For the stage `junie-run` you can also set the following environment variables to customize the behavior:
 
-| Variable                       | Default value    | Description                                                                 |
-|--------------------------------|------------------|-----------------------------------------------------------------------------|
-| `JUNIE_BOT_TAGGING_PATTERN`    | junie            | RegExp for a bot's name for mentioning Junie                                |
-| `JUNIE_VERSION`                | `null`           | Version of Junie CLI to use. If is not set – the latest one will be used    |
-| `JUNIE_MODEL`                  | `null`           | Specific Junie model to use (e.g., `claude-sonnet-4-5-20250929`)            |
-| `JUNIE_GUIDELINES_FILENAME`    | `guidelines.md`  | Filename of the guidelines file (should be in `<project-root>/.junie` dir)  |
-| `USE_MCP`                      | `false`          | Enable GitLab MCP tools for inline code review comments                     |
-
-### Performance Optimization
-
-To avoid creating pipelines for every comment in your repository, the CI rules include a regex filter:
-```yaml
-- if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /@junie(\s|$)/i
-```
-
-This checks if the comment text contains "@junie" (case insensitive) **before** starting the pipeline. The regex `(\s|$)` ensures it matches `@junie` followed by a space or at the end of the comment. Pipelines only run when Junie is properly mentioned with @, saving CI/CD resources.
-
-**Customizing the trigger pattern:**
-If you change the bot name from "junie" to something else (e.g., "mybot"), you need to update **two places** in `.gitlab-ci.yml`:
-1. The regex in `junie-run` rules: `$COMMENT_TEXT =~ /@mybot(\s|$)/i` - filters comments before pipeline starts
-2. `JUNIE_BOT_TAGGING_PATTERN` variable in `junie-run` job: `"mybot[-a-zA-Z0-9]*"` - used by wrapper code
-
-See detailed comments at the top of `script-sample.yaml` for instructions.
+| Variable                       | Default value   | Description                                                                 |
+|--------------------------------|-----------------|-----------------------------------------------------------------------------|
+| `JUNIE_VERSION`                | `null`          | Version of Junie CLI to use. If is not set – the latest one will be used    |
+| `JUNIE_MODEL`                  | `null`          | Specific Junie model to use (e.g., `claude-sonnet-4-5-20250929`)            |
+| `JUNIE_GUIDELINES_FILENAME`    | `guidelines.md` | Filename of the guidelines file (should be in `<project-root>/.junie` dir)  |
+| `USE_MCP`                      | `true`          | Enable GitLab MCP tools for inline code review comments                     |
 
 ## Commands
 
 ### `init`
 
-Initializes Junie CLI in this repository.
-This job will generate a new webhook that triggers a pipeline to handle users' requests to Junie.
+Initializes Junie CLI in the repositories specified as command line arguments (comma-separated).
+For every requested project this job will generate a new webhook that triggers a pipeline with Junie in the Junie Workspace project, generate a new trigger-token for Junie Workspace project and create a new project-level access token for Junie CLI to use in a pipeline.
 Normally it must be executed once per repository.
 
 **Options:**
@@ -80,7 +78,7 @@ Run Junie CLI.
 **Code Review Feature:**
 
 To trigger code review, you can either:
-1. **Manual trigger**: Write "code-review" in a comment to a merge request (requires `junie-init` to be run first)
+1. **Manual trigger**: Write `#junie code-review` in a comment to a merge request (requires `junie-init` to be run first)
 2. **Automatic trigger**: Configure a separate CI/CD job that runs on every MR update
 
 When the "code-review" phrase is detected, Junie will:
@@ -92,7 +90,7 @@ When the "code-review" phrase is detected, Junie will:
 **CI Failure Analysis (fix-ci) Feature:**
 
 To trigger CI failure analysis:
-- **Manual trigger**: Write "fix-ci" in a comment on an MR with failed tests (requires `junie-init` to be run first)
+- **Manual trigger**: Write `#junie fix-ci` in a comment on an MR with failed tests (requires `junie-init` to be run first)
 
 When "fix-ci" is triggered, Junie will:
 - Find the most recent failed pipeline for the MR
@@ -108,6 +106,6 @@ When "fix-ci" is triggered, Junie will:
 
 ## Need Help?
 
-- 📘 Check the [Cookbook](./COOKBOOK.md) for examples
+- 📘 Check the [Cookbook](./COOKBOOK.md) for examples *(NEED TO BE UPDATED)*
 - 🐛 Report issues in the project's issue tracker
-- 💬 Mention `@junie` in any MR or issue for interactive assistance
+- 💬 Mention `#junie` in any MR or issue for interactive assistance

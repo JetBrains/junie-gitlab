@@ -34,14 +34,15 @@ export const webhookEnv = {
     junieBotTaggingPattern: new StringVariable("JUNIE_BOT_TAGGING_PATTERN"),
     junieVersion: new StringVariable("JUNIE_VERSION"),
     useMcp: new BooleanVariable("USE_MCP", "true"),
+    usePipelineRedirect: new BooleanVariable("USE_PIPELINE_REDIRECT", "false"),
     junieModel: new StringVariable("JUNIE_MODEL"),
     junieGuidelinesFilename: new StringVariable("JUNIE_GUIDELINES_FILENAME"),
+    junieCustomPrompt: new StringVariable("JUNIE_CUSTOM_PROMPT"),
+    junieProjectId: new NumericVariable("CI_PROJECT_ID"),
+    junieProjectDefaultBranch: new StringVariable("CI_DEFAULT_BRANCH"),
 
     apiV4Url: new StringVariable("CI_API_V4_URL"),
-    defaultBranch: new StringVariable("CI_DEFAULT_BRANCH"),
-
-    projectId: new NumericVariable("CI_PROJECT_ID"),
-    projectName: new StringVariable("CI_PROJECT_NAME"),
+    projectId: new NumericVariable("PROJECT_ID", "{{project.id}}"),
     pipelineId: new NumericVariable("CI_PIPELINE_ID"),
 
     eventKind: new StringVariable("EVENT_KIND", "{{object_kind}}"),
