@@ -74,7 +74,7 @@ junie-run:
     # Pattern for matching Junie bot mentions inside the wrapper code
     # NOTE: Keep this in sync with JUNIE_MENTION_TRIGGER and the regex in rules above
     JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude instead of Gemini for MCP compatibility
+    JUNIE_MODEL: "claude-sonnet-4-6"  # Use Claude instead of Gemini for MCP compatibility
   artifacts:
     reports:
       dotenv: junie-artifacts/working-directory/wrapper-outputs.env
