@@ -48,10 +48,15 @@ export async function execute(context: GitLabExecutionContext) {
 
         // Configure glab authentication
         try {
-            const glabHost = (new URL(context.apiV4Url)).origin;
-            logger.info(`Configuring glab authentication for ${glabHost}`);
+            const parsedUrl = new URL(context.apiV4Url);
+            const glabHost = parsedUrl.host;
+            const glabProtocol = parsedUrl.protocol.replace(':', ''); // 'http' or 'https'
+            logger.info(`Configuring glab authentication for ${glabProtocol}://${glabHost}`);
             execSync(`echo "${context.gitlabToken}" | glab auth login --hostname ${glabHost} --stdin`, {stdio: 'inherit'});
-            logger.info("glab authentication configured successfully");
+            execSync(`glab config set --host ${glabHost} api_protocol ${glabProtocol}`, {stdio: 'pipe'});
+            const authCheckOutput = execSync(`glab api user --hostname ${glabHost}`, { stdio: 'pipe' }).toString();
+            const { username, name } = JSON.parse(authCheckOutput);
+            logger.info(`glab authentication configured successfully. Current user: ${username} (${name})`);
         } catch (error) {
             logger.error("Failed to configure glab authentication:", error);
         }
