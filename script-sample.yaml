@@ -93,7 +93,7 @@ junie-cleanup:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && (($COMMENT_TEXT =~ /#junie(\s|$)/i && $DELETE_PIPELINE == "true") || $COMMENT_TEXT !~ /#junie(\s|$)/i)'
       when: on_success
-    - if: *if-mr-open
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION != "open"'
       when: on_success
     - when: never
   script:
