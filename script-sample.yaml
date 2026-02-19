@@ -32,6 +32,10 @@ stages:
 #
 # =============================================================================
 
+.trigger-conditions:
+  - &if-junie-note '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /#junie(\s|$)/i'
+  - &if-mr-open '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION == "open"'
+
 junie-init:
   stage: junie
   environment: init
@@ -58,8 +62,12 @@ junie-run:
     - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
     - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /#junie(\s|$)/i'
+    - if: *if-junie-note
       when: always
+    - if: *if-mr-open
+      when: always
+      variables:
+        JUNIE_CUSTOM_PROMPT: "code-review"
     - when: never
   variables:
     GITLAB_TOKEN_FOR_JUNIE: "$INPUT_TOKEN"
@@ -84,6 +92,8 @@ junie-cleanup:
   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
   rules:
     - if: '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && (($COMMENT_TEXT =~ /#junie(\s|$)/i && $DELETE_PIPELINE == "true") || $COMMENT_TEXT !~ /#junie(\s|$)/i)'
+      when: on_success
+    - if: *if-mr-open
       when: on_success
     - when: never
   script:

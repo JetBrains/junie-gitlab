@@ -51,7 +51,7 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
     ) {}
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
-        const { cliOptions: { customPrompt } } = this.context;
+        const { customPrompt } = this.context;
 
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(
@@ -118,7 +118,7 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
     }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
-        const { cliOptions: { customPrompt } } = this.context;
+        const { customPrompt } = this.context;
 
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(
@@ -195,7 +195,7 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
     }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
-        const { cliOptions: { customPrompt } } = this.context;
+        const { customPrompt } = this.context;
 
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(

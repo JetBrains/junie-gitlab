@@ -47,7 +47,6 @@ program
     .command('run')
     .description('Run Junie CLI')
     .option('-V, --verbose', 'Enable verbose logging', false)
-    .option('-p, --prompt <prompt>', 'Custom prompt for Junie execution')
     .addOption(
         new Option('-M --mr-mode <mode>', 'Merge requests processing mode ("append" or "new")')
             .choices(['append', 'new'])
@@ -56,7 +55,6 @@ program
     .action(async (opts) => {
         const verbose: boolean = opts.verbose ?? false;
         const mrMode: 'append' | 'new' = opts.mrMode ?? 'new';
-        const customPrompt: string | undefined = opts.prompt;
         if (verbose) {
             logger.level = 'debug';
         }
@@ -64,7 +62,6 @@ program
         // Extract GitLab context from environment and CLI options
         const context = await extractGitLabContext({
             mrMode: mrMode,
-            customPrompt: customPrompt ?? null,
         });
 
         execute(context).then(() => {

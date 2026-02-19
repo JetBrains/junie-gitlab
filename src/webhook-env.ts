@@ -36,6 +36,7 @@ export const webhookEnv = {
     useMcp: new BooleanVariable("USE_MCP", "true"),
     junieModel: new StringVariable("JUNIE_MODEL"),
     junieGuidelinesFilename: new StringVariable("JUNIE_GUIDELINES_FILENAME"),
+    junieCustomPrompt: new StringVariable("JUNIE_CUSTOM_PROMPT"),
     junieProjectId: new NumericVariable("CI_PROJECT_ID"),
     junieProjectDefaultBranch: new StringVariable("CI_DEFAULT_BRANCH"),
 

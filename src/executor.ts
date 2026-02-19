@@ -1,7 +1,6 @@
 import {runCommand} from "./utils/commands.js";
 import {
     createMergeRequest,
-    deletePipeline,
     getUserById,
     recursivelyGetAllProjectTokens,
     api
@@ -121,7 +120,7 @@ export async function execute(context: GitLabExecutionContext) {
 }
 
 async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<TaskExtractionResult> {
-    const {projectId, junieBotTaggingPattern, cliOptions: {customPrompt}} = context;
+    const {projectId, junieBotTaggingPattern, customPrompt} = context;
     const dataFetcher = new GitLabDataFetcher(api);
 
     // Issue comment event
@@ -205,11 +204,6 @@ function runJunie(junieTask: JunieTask, apiKey: string, model: string | null, gu
         logger.error("Failed to run Junie", e);
         throw e;
     }
-}
-
-async function cleanup(projectId: number, pipelineId: number) {
-    logger.info('Cleaning up...');
-    await deletePipeline(projectId, pipelineId);
 }
 
 async function stageAndLogChanges() {

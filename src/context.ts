@@ -12,7 +12,6 @@ export type MREventAction = 'open' | 'update' | 'reopen' | 'close' | 'merge';
  */
 export interface CLIOptions {
     mrMode: 'append' | 'new';
-    customPrompt: string | null;
 }
 
 /**
@@ -37,6 +36,7 @@ interface BaseGitLabContext {
     junieGuidelinesFilename: string | null;
     useMcp: boolean;
     junieBotTaggingPattern: RegExp;
+    customPrompt: string | null;
 
     // CLI options
     cliOptions: CLIOptions;
@@ -134,6 +134,7 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         junieGuidelinesFilename: webhookEnv.junieGuidelinesFilename.value,
         useMcp: webhookEnv.useMcp.value,
         junieBotTaggingPattern,
+        customPrompt: webhookEnv.junieCustomPrompt.value,
 
         // CLI options
         cliOptions,
