@@ -55,7 +55,7 @@ export async function initialize(projectIds: number[]) {
             patExpiration.setFullYear(patExpiration.getFullYear() + 1);
             const pat = await createProjectAccessToken(
                 projectId,
-                "junie's access token",
+                "Junie by JetBrains",
                 undefined,
                 ["write_repository", "api"],
                 AccessLevel.MAINTAINER, // refine this choice if needed
