@@ -7,6 +7,7 @@ import {
 } from "./api/gitlab-api.js";
 import {logger} from "./utils/logging.js";
 import {AccessLevel} from "@gitbeaker/rest";
+import {PROJECT_ACCESS_TOKEN_NAME} from "./constants/gitlab.js";
 
 export async function initialize(projectIds: number[]) {
 
@@ -55,7 +56,7 @@ export async function initialize(projectIds: number[]) {
             patExpiration.setFullYear(patExpiration.getFullYear() + 1);
             const pat = await createProjectAccessToken(
                 projectId,
-                "Junie by JetBrains",
+                PROJECT_ACCESS_TOKEN_NAME,
                 undefined,
                 ["write_repository", "api"],
                 AccessLevel.MAINTAINER, // refine this choice if needed

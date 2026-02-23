@@ -36,7 +36,6 @@ interface BaseGitLabContext {
     junieGuidelinesFilename: string | null;
     useMcp: boolean;
     usePipelineRedirect: boolean;
-    junieBotTaggingPattern: RegExp;
     customPrompt: string | null;
 
     // CLI options
@@ -112,9 +111,6 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         throw new Error("EVENT_KIND is required");
     }
 
-    const junieBotTaggingPatternString = webhookEnv.junieBotTaggingPattern.value ?? "junie";
-    const junieBotTaggingPattern = new RegExp(junieBotTaggingPatternString, "i");
-
     // Base context shared by all event types
     const baseContext: BaseGitLabContext = {
         // Project info
@@ -135,7 +131,6 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         junieGuidelinesFilename: webhookEnv.junieGuidelinesFilename.value,
         useMcp: webhookEnv.useMcp.value,
         usePipelineRedirect: webhookEnv.usePipelineRedirect.value,
-        junieBotTaggingPattern,
         customPrompt: webhookEnv.junieCustomPrompt.value,
 
         // CLI options

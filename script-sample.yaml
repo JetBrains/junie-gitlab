@@ -18,22 +18,8 @@ stages:
   - junie
   - cleanup
 
-# =============================================================================
-# Junie Trigger Configuration
-# =============================================================================
-# IMPORTANT: If you change the bot name from "junie" to something else,
-# you must update TWO places to keep them in sync:
-#
-# 1. junie-run rules: $COMMENT_TEXT =~ /@YOUR_BOT_NAME(\s|$)/i
-#    This filters comments BEFORE starting the pipeline (saves CI resources)
-#
-# 2. junie-run variables: JUNIE_BOT_TAGGING_PATTERN: "YOUR_BOT_NAME[-a-zA-Z0-9]*"
-#    This is used inside the wrapper code to detect mentions
-#
-# =============================================================================
-
 .trigger-conditions:
-  - &if-junie-note '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /#junie(\s|$)/i'
+  - &if-junie-note '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "note" && ($COMMENT_TEXT =~ /#junie(\s|$)/i || $COMMENT_TEXT =~ /@project_[0-9]+_bot/i)'
   - &if-mr-open '$CI_PIPELINE_SOURCE == "trigger" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION == "open"'
 
 junie-init:
@@ -73,7 +59,6 @@ junie-run:
     GITLAB_TOKEN_FOR_JUNIE: "$INPUT_TOKEN"
     # Pattern for matching Junie bot mentions inside the wrapper code
     # NOTE: Keep this in sync with JUNIE_MENTION_TRIGGER and the regex in rules above
-    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
     JUNIE_MODEL: "claude-sonnet-4-6"  # Use Claude instead of Gemini for MCP compatibility
   artifacts:
     reports:
