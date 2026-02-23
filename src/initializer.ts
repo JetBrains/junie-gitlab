@@ -3,7 +3,7 @@ import {
     createPipelineTriggerToken,
     createProjectAccessToken,
     createProjectHook, deletePipelineTriggerToken, getAllPipelineTriggerTokens,
-    getAllProjectHooks
+    getAllProjectHooks, setJunieAvatar
 } from "./api/gitlab-api.js";
 import {logger} from "./utils/logging.js";
 import {AccessLevel} from "@gitbeaker/rest";
@@ -61,6 +61,12 @@ export async function initialize(projectIds: number[]) {
                 AccessLevel.MAINTAINER, // refine this choice if needed
                 patExpiration.toISOString(),
             );
+            try {
+                await setJunieAvatar(pat.user_id);
+            } catch (e) {
+                logger.warn("Failed to set bot's avatar");
+                logger.warn(e);
+            }
             logger.info(`Generated PAT "${pat.name}" with id ${pat.id} and expiration date ${pat.expires_at}`);
 
             const webhookUrl = `${apiV4Url}/projects/${junieProjectId}/trigger/pipeline?ref=${junieProjectDefaultBranch}&token={trigger_token}&inputs[project_token]={project_token}`;

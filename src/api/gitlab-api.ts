@@ -8,6 +8,8 @@ import {
 import {webhookEnv} from "../webhook-env.js";
 import {AccessTokenExposedSchema, IssueSchema} from "@gitbeaker/core";
 import {logger} from "../utils/logging.js";
+import * as fs from 'fs';
+import {Blob} from 'buffer';
 
 const apiHost = (new URL(webhookEnv.apiV4Url.value!)).origin;
 const token = webhookEnv.gitlabToken.value!;
@@ -299,4 +301,15 @@ export async function updateProjectCiConfigPath(
 ): Promise<ProjectSchema> {
     logger.debug(`Updating CI config path for project ${projectId} to: ${ciConfigPath}`);
     return await api.Projects.edit(projectId, { ciConfigPath } as any);
+}
+
+export async function setJunieAvatar(userId: number): Promise<UserSchema> {
+    logger.debug(`Setting avatar for user ${userId} from ./assets/junie-logo.png`);
+    const avatarPath = '/assets/junie-logo.png';
+    const avatarData = fs.readFileSync(avatarPath);
+    const data = {
+        content: new Blob([avatarData]),
+        filename: 'junie-logo.png',
+    };
+    return await api.Users.edit(userId, { avatar: data });
 }

@@ -37,4 +37,5 @@ RUN curl -sSL "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/in
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
+COPY assets /assets/
 
