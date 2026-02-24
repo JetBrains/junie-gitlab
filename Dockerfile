@@ -24,7 +24,7 @@ FROM node:24-trixie AS runner
 WORKDIR /app
 
 # simple-git requires the git CLI in the image
-RUN apt update && apt install -y git openssh-client tree curl
+RUN apt update && apt install -y git openssh-client tree curl unzip
 RUN mkdir /junieCache
 
 # Install glab (GitLab CLI) via APT
@@ -32,6 +32,12 @@ RUN curl -sSL "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/in
     apt-get update && \
     apt-get install -y glab && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Junie
+RUN curl -fsSL https://junie.jetbrains.com/install.sh | bash
+
+# Add $HOME/.local/bin (with Junie's executable file) to PATH
+ENV PATH="/root/.local/bin:$PATH"
 
 # Copy minimal runtime artifacts
 COPY --from=builder /app/node_modules ./node_modules

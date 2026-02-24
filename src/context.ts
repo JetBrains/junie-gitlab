@@ -31,7 +31,6 @@ interface BaseGitLabContext {
     junieApiKey: string;
 
     // Junie configuration
-    junieVersion: string | null;
     junieModel: string | null;
     junieGuidelinesFilename: string | null;
     useMcp: boolean;
@@ -126,7 +125,6 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         junieApiKey: webhookEnv.junieApiKey.value!,
 
         // Junie configuration
-        junieVersion: webhookEnv.junieVersion.value,
         junieModel: webhookEnv.junieModel.value,
         junieGuidelinesFilename: webhookEnv.junieGuidelinesFilename.value,
         useMcp: webhookEnv.useMcp.value,

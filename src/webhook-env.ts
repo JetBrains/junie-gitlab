@@ -31,7 +31,7 @@ class BooleanVariable extends Variable<boolean> {
 
 export const webhookEnv = {
     isJunieWebhook: new StringVariable("JUNIE_WEBHOOK", "true"),
-    junieVersion: new StringVariable("JUNIE_VERSION"),
+    // junieVersion: new StringVariable("JUNIE_VERSION"),
     useMcp: new BooleanVariable("USE_MCP", "true"),
     usePipelineRedirect: new BooleanVariable("USE_PIPELINE_REDIRECT", "false"),
     junieModel: new StringVariable("JUNIE_MODEL"),

@@ -86,9 +86,6 @@ export async function execute(context: GitLabExecutionContext) {
         }
 
         const projectPath = context.projectPathWithNamespace;
-        logger.info('Installing Junie CLI...');
-        const output = runCommand('npm i -g @jetbrains/junie-cli' + (context.junieVersion ? '@' + context.junieVersion : ''));
-        logger.info(output.trim());
 
         // Configure glab authentication
         try {

@@ -46,7 +46,6 @@ For the stage `junie-run` you can also set the following environment variables t
 
 | Variable                       | Default value   | Description                                                                 |
 |--------------------------------|-----------------|-----------------------------------------------------------------------------|
-| `JUNIE_VERSION`                | `null`          | Version of Junie CLI to use. If is not set – the latest one will be used    |
 | `JUNIE_MODEL`                  | `null`          | Specific Junie model to use (e.g., `claude-sonnet-4-5-20250929`)            |
 | `JUNIE_GUIDELINES_FILENAME`    | `guidelines.md` | Filename of the guidelines file (should be in `<project-root>/.junie` dir)  |
 | `USE_MCP`                      | `true`          | Enable GitLab MCP tools for inline code review comments                     |
