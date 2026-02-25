@@ -14,6 +14,8 @@ export const MINOR_FIX_ACTION = "minor-fix";
 
 export const MINOR_FIX_TRIGGER_PHRASE_REGEXP = new RegExp(MINOR_FIX_ACTION, 'i');
 
+export const PROJECT_ACCESS_TOKEN_NAME = "Junie by JetBrains";
+
 // ============================================================================
 // Templates and Messages
 // ============================================================================

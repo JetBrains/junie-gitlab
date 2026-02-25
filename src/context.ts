@@ -1,5 +1,6 @@
 import {webhookEnv} from "./webhook-env.js";
 import {logger} from "./utils/logging.js";
+import {getProjectById} from "./api/gitlab-api.js";
 
 /**
  * MR event actions
@@ -10,9 +11,7 @@ export type MREventAction = 'open' | 'update' | 'reopen' | 'close' | 'merge';
  * Configuration options passed from CLI
  */
 export interface CLIOptions {
-    cleanupAfterIdleRun?: boolean;
     mrMode: 'append' | 'new';
-    customPrompt: string | null;
 }
 
 /**
@@ -22,6 +21,7 @@ interface BaseGitLabContext {
     // Project info
     projectId: number;
     projectName: string;
+    projectPathWithNamespace: string;
     pipelineId: number;
 
     // API configuration
@@ -31,14 +31,17 @@ interface BaseGitLabContext {
     junieApiKey: string;
 
     // Junie configuration
-    junieVersion: string | null;
     junieModel: string | null;
     junieGuidelinesFilename: string | null;
     useMcp: boolean;
-    junieBotTaggingPattern: RegExp;
+    usePipelineRedirect: boolean;
+    customPrompt: string | null;
 
     // CLI options
     cliOptions: CLIOptions;
+
+    // Job execution runtime info
+    junieProjectId: number;
 }
 
 /**
@@ -93,9 +96,11 @@ export type GitLabExecutionContext =
 /**
  * Extracts GitLab execution context from environment variables and CLI options
  */
-export function extractGitLabContext(cliOptions: CLIOptions): GitLabExecutionContext {
-    const projectId = webhookEnv.projectId.value;
+export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitLabExecutionContext> {
+    const projectId = webhookEnv.projectId.value!;
     const eventKind = webhookEnv.eventKind.value;
+
+    const projectMeta = await getProjectById(projectId);
 
     if (!projectId) {
         throw new Error("CI_PROJECT_ID is required");
@@ -105,31 +110,32 @@ export function extractGitLabContext(cliOptions: CLIOptions): GitLabExecutionCon
         throw new Error("EVENT_KIND is required");
     }
 
-    const junieBotTaggingPatternString = webhookEnv.junieBotTaggingPattern.value ?? "junie";
-    const junieBotTaggingPattern = new RegExp(junieBotTaggingPatternString, "i");
-
     // Base context shared by all event types
     const baseContext: BaseGitLabContext = {
         // Project info
         projectId,
-        projectName: webhookEnv.projectName.value ?? "unknown",
+        projectName: projectMeta.name,
+        projectPathWithNamespace: projectMeta.path_with_namespace,
         pipelineId: webhookEnv.pipelineId.value ?? 0,
 
         // API configuration
         apiV4Url: webhookEnv.apiV4Url.value!,
-        defaultBranch: webhookEnv.defaultBranch.value!,
+        defaultBranch: projectMeta.default_branch,
         gitlabToken: webhookEnv.gitlabToken.value!,
         junieApiKey: webhookEnv.junieApiKey.value!,
 
         // Junie configuration
-        junieVersion: webhookEnv.junieVersion.value,
         junieModel: webhookEnv.junieModel.value,
         junieGuidelinesFilename: webhookEnv.junieGuidelinesFilename.value,
         useMcp: webhookEnv.useMcp.value,
-        junieBotTaggingPattern,
+        usePipelineRedirect: webhookEnv.usePipelineRedirect.value,
+        customPrompt: webhookEnv.junieCustomPrompt.value,
 
         // CLI options
         cliOptions,
+
+        // Job execution runtime info
+        junieProjectId: webhookEnv.junieProjectId.value!,
     };
 
     let context: GitLabExecutionContext;

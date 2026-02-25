@@ -1,10 +1,7 @@
 import {runCommand} from "./utils/commands.js";
 import {
     createMergeRequest,
-    deletePipeline,
-    getUserById,
-    recursivelyGetAllProjectTokens,
-    api
+    api, getProjectCiConfigPath, getProjectById, updateProjectCiConfigPath, runPipeline, getAllProjectAccessTokens
 } from "./api/gitlab-api.js";
 import {execSync} from "child_process";
 import * as fs from "fs";
@@ -33,23 +30,74 @@ import {
     isMergeRequestCommentEvent,
     isMergeRequestEvent
 } from "./context.js";
+import {writeToFile} from "./utils/io.js";
+import {Variable, webhookEnv} from "./webhook-env.js";
+import {PipelineVariableSchema} from "@gitbeaker/rest";
+import {PROJECT_ACCESS_TOKEN_NAME} from "./constants/gitlab.js";
 
 const cacheDir = "/junieCache";
+const literalMentions = ['@junie', '#junie'];
 
 export async function execute(context: GitLabExecutionContext) {
     const taskExtractionResult = await extractTaskFromEnv(context);
 
     if (taskExtractionResult.success) {
-        logger.info('Installing Junie CLI...');
-        const output = runCommand('npm i -g @jetbrains/junie-cli' + (context.junieVersion ? '@' + context.junieVersion : ''));
-        logger.info(output.trim());
+
+        /**
+         * Handle pipeline redirection logic.
+         * If usePipelineRedirect is set to true – it will trigger a pipeline in a user-project instead of continuing
+         * its execution in the current project.
+         */
+        if (context.usePipelineRedirect && context.projectId !== context.junieProjectId) {
+            logger.info(`Redirecting pipeline to Junie project ${context.junieProjectId}`);
+            const originalCiSource = await getProjectCiConfigPath(context.projectId);
+            logger.info(`Original CI config path: ${originalCiSource ? `"${originalCiSource}"` : "[none]"}`);
+            const currentProject = await getProjectById(context.junieProjectId);
+            const targetProject = await getProjectById(context.projectId);
+            const filePath = `child-pipeline.yml@${currentProject.path_with_namespace}`;
+            await updateProjectCiConfigPath(context.projectId, filePath);
+            try {
+                const variables: PipelineVariableSchema[] = [];
+                Object.keys(webhookEnv).forEach(key => {
+                    const value = (webhookEnv as any)[key];
+                    if (value instanceof Variable && value.mappedValue !== null) {
+                        variables.push({key: value.key, value: value.value});
+                    }
+                });
+                variables.push({
+                    key: webhookEnv.junieApiKey.key,
+                    value: webhookEnv.junieApiKey.value!,
+                });
+                variables.push({
+                    key: webhookEnv.gitlabToken.key,
+                    value: webhookEnv.gitlabToken.value!,
+                });
+                await runPipeline(
+                    targetProject.id,
+                    targetProject.default_branch, // ?
+                    variables,
+                );
+            } catch (e) {
+                logger.error("Failed to redirect pipeline", e);
+            } finally {
+                await updateProjectCiConfigPath(context.projectId, originalCiSource);
+            }
+            return;
+        }
+
+        const projectPath = context.projectPathWithNamespace;
 
         // Configure glab authentication
         try {
-            const glabHost = (new URL(context.apiV4Url)).origin;
-            logger.info(`Configuring glab authentication for ${glabHost}`);
+            const parsedUrl = new URL(context.apiV4Url);
+            const glabHost = parsedUrl.host;
+            const glabProtocol = parsedUrl.protocol.replace(':', ''); // 'http' or 'https'
+            logger.info(`Configuring glab authentication for ${glabProtocol}://${glabHost}`);
             execSync(`echo "${context.gitlabToken}" | glab auth login --hostname ${glabHost} --stdin`, {stdio: 'inherit'});
-            logger.info("glab authentication configured successfully");
+            execSync(`glab config set --host ${glabHost} api_protocol ${glabProtocol}`, {stdio: 'pipe'});
+            const authCheckOutput = execSync(`glab api user --hostname ${glabHost}`, { stdio: 'pipe' }).toString();
+            const { username, name } = JSON.parse(authCheckOutput);
+            logger.info(`glab authentication configured successfully. Current user: ${username} (${name})`);
         } catch (error) {
             logger.error("Failed to configure glab authentication:", error);
         }
@@ -66,10 +114,7 @@ export async function execute(context: GitLabExecutionContext) {
 
         // checkout another branch if needed:
         const branchToPull = taskExtractionResult.checkoutBranch;
-        if (branchToPull) {
-            logger.info(`Checking out the branch ${branchToPull}`)
-            await checkoutBranch(branchToPull);
-        }
+        await checkoutBranch(projectPath, branchToPull);
 
         const junieTask = await taskExtractionResult.generateJuniePrompt(context.useMcp);
         const resultJson = runJunie(junieTask, context.junieApiKey, context.junieModel, context.junieGuidelinesFilename);
@@ -87,25 +132,20 @@ export async function execute(context: GitLabExecutionContext) {
 
         if ((taskExtractionResult instanceof MergeRequestCommentTask || taskExtractionResult instanceof MergeRequestEventTask)
             && context.cliOptions.mrMode === "append"
-            && branchToPull) {
+            && branchToPull !== context.defaultBranch) {
             await pushChangesToTheSameBranch(
+                projectPath,
                 branchToPull,
                 commitMessage,
             );
         } else {
-            let targetBranch = context.defaultBranch;
-            if (taskExtractionResult instanceof MergeRequestCommentTask || taskExtractionResult instanceof MergeRequestEventTask) {
-                targetBranch = taskExtractionResult.checkoutBranch;
-            }
-            if (!targetBranch) {
-                throw new Error("Can't determine target branch for merge request");
-            }
             createdMrUrl = await pushChangesAsMergeRequest(
                 context.projectId,
+                projectPath,
                 taskExtractionResult.getTitle(),
                 taskExtractionResult.generateMrIntro(outcome),
                 commitMessage,
-                targetBranch,
+                branchToPull,
             );
         }
 
@@ -117,21 +157,21 @@ export async function execute(context: GitLabExecutionContext) {
         // TODO: ?
     } else {
         logger.info(`No task detected: ${taskExtractionResult.reason}`);
-        if (context.cliOptions.cleanupAfterIdleRun) {
-            await cleanup(context.projectId, context.pipelineId);
-        } else {
-            logger.info("Auto-cleanup disabled and will be skipped");
-        }
+        /**
+         * During the "cleanup" stage of a GitLab pipeline, the wrapper will delete a current running pipeline in case
+         * there is an environment variable DELETE_PIPELINE set to 'true':
+         */
+        writeToFile(`${cacheDir}/wrapper-outputs.env`, "DELETE_PIPELINE=true");
     }
 }
 
 async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<TaskExtractionResult> {
-    const {projectId, junieBotTaggingPattern, cliOptions: {customPrompt}} = context;
+    const {projectId, customPrompt} = context;
     const dataFetcher = new GitLabDataFetcher(api);
 
     // Issue comment event
     if (isIssueCommentEvent(context)) {
-        const hasMention = await checkTextForJunieMention(projectId, context.commentText, junieBotTaggingPattern);
+        const hasMention = await checkTextForJunieMention(projectId, context.commentText);
         if (!hasMention) {
             return new FailedTaskExtractionResult("Comment doesn't contain mention to Junie");
         }
@@ -142,13 +182,14 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
 
         return new IssueCommentTask(
             context,
-            fetchedData
+            fetchedData,
+            context.defaultBranch,
         );
     }
 
     // MR comment event
     if (isMergeRequestCommentEvent(context)) {
-        const hasMention = await checkTextForJunieMention(projectId, context.commentText, junieBotTaggingPattern);
+        const hasMention = await checkTextForJunieMention(projectId, context.commentText);
         if (!hasMention) {
             return new FailedTaskExtractionResult("Comment doesn't contain mention to Junie");
         }
@@ -211,11 +252,6 @@ function runJunie(junieTask: JunieTask, apiKey: string, model: string | null, gu
     }
 }
 
-async function cleanup(projectId: number, pipelineId: number) {
-    logger.info('Cleaning up...');
-    await deletePipeline(projectId, pipelineId);
-}
-
 async function stageAndLogChanges() {
     await addAllToGit();
 
@@ -227,6 +263,7 @@ async function stageAndLogChanges() {
 
 async function pushChangesAsMergeRequest(
     projectId: number,
+    projectPath: string,
     mrTitle: string,
     mrDescription: string,
     commitMessage: string,
@@ -245,7 +282,7 @@ async function pushChangesAsMergeRequest(
     await checkoutLocalBranch(branchName);
 
     await commitGitChanges(commitMessage);
-    await pushGitChanges(branchName);
+    await pushGitChanges(projectPath, branchName);
 
     const mr = await createMergeRequest(
         projectId,
@@ -258,6 +295,7 @@ async function pushChangesAsMergeRequest(
 }
 
 async function pushChangesToTheSameBranch(
+    projectPath: string,
     branchName: string,
     commitMessage: string,
 ) {
@@ -270,30 +308,24 @@ async function pushChangesToTheSameBranch(
     // initializeGitLFS();
 
     await commitGitChanges(commitMessage);
-    await pushGitChanges(branchName);
+    await pushGitChanges(projectPath, branchName);
 }
 
+/**
+ * Checks if the given text contains a mention to Junie bot. There are basically two cases when it does:
+ * 1. If there is a literal mention (e.g. "@junie" or "#junie" in the text)
+ * 2. If a bot created during the init phase is mentioned (so there is a tagged user with a name == PROJECT_ACCESS_TOKEN_NAME)
+ * @param projectId
+ * @param text
+ */
 async function checkTextForJunieMention(
     projectId: number,
     text: string,
-    botTaggingPattern: RegExp,
 ): Promise<boolean> {
-    if (text.toLowerCase().includes('@junie')) {
+    if (literalMentions.some(mention => text.toLowerCase().includes(mention.toLowerCase()))) {
         logger.info('Detected literal junie mention');
         return true;
     }
-    const regex = /@(project|group)_[-a-zA-Z0-9_]+/g;
-    const matches = Array.from(text.matchAll(regex));
-    const tokens = await recursivelyGetAllProjectTokens(projectId);
-    const filteredTokens = tokens
-        .filter(token => token.active && !token.revoked)
-        .filter(token => botTaggingPattern.test(token.name));
-    for (const token of filteredTokens) {
-        const user = await getUserById(token.user_id);
-        if (matches.some(match => match[0].includes(user.username))) {
-            logger.info(`Detected mention to '${user.username}' (token '${token.name}')`);
-            return true;
-        }
-    }
-    return false;
+    const tokens = await getAllProjectAccessTokens(projectId);
+    return tokens.some(token => token.active && !token.revoked && token.name === PROJECT_ACCESS_TOKEN_NAME);
 }

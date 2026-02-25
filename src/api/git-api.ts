@@ -10,6 +10,7 @@ const git = simpleGit({
 let gitIsInitialized = false;
 async function initGit() {
     if (!gitIsInitialized) {
+        await git.init();
         await git.addConfig('user.name', 'Junie', false, 'global');
         await git.addConfig('user.email', 'Junie@jetbrains.com', false, 'global');
         await git.addConfig('safe.directory', process.env.CI_PROJECT_DIR ?? process.cwd(), true, 'global');
@@ -34,9 +35,10 @@ export async function checkoutLocalBranch(branchName: string) {
     await git.checkoutLocalBranch(branchName);
 }
 
-export async function checkoutBranch(branchName: string) {
+export async function checkoutBranch(projectPath: string, branchName: string) {
+    logger.info(`Checking out branch ${branchName} from project ${projectPath}`);
     await initGit();
-    await setRemoteIfNeeded();
+    await setRemoteIfNeeded(projectPath);
     await git.fetch('origin', branchName);
     await git.checkout(branchName);
 }
@@ -58,9 +60,9 @@ export async function commitGitChanges(message: string) {
     await git.commit(message);
 }
 
-export async function pushGitChanges(branch: string) {
+export async function pushGitChanges(projectPath: string, branch: string) {
     await initGit();
-    await setRemoteIfNeeded();
+    await setRemoteIfNeeded(projectPath);
     await git.push('origin', branch);
     logger.info(`Push completed`);
 }
@@ -78,10 +80,15 @@ export async function checkForChanges(): Promise<StatusResult> {
 }
 
 let remoteIsSet = false;
-async function setRemoteIfNeeded() {
+async function setRemoteIfNeeded(projectPath: string) {
     if (remoteIsSet) return;
-    const remoteUrl = `${process.env.CI_SERVER_PROTOCOL}://oauth2:${webhookEnv.gitlabToken.value!}@${process.env.CI_SERVER_HOST}/${process.env.CI_PROJECT_PATH}.git`;
-    await git.remote(['set-url', 'origin', remoteUrl]);
+    const remoteUrl = `${process.env.CI_SERVER_PROTOCOL}://oauth2:${webhookEnv.gitlabToken.value!}@${process.env.CI_SERVER_HOST}/${projectPath}.git`;
+    const remotes = await git.getRemotes();
+    if (remotes.find(r => r.name === 'origin')) {
+        await git.remote(['set-url', 'origin', remoteUrl]);
+    } else {
+        await git.addRemote('origin', remoteUrl);
+    }
     remoteIsSet = true;
     logger.info(`Git remote set to ${remoteUrl}`);
 }

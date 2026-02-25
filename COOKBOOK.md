@@ -4,110 +4,22 @@ Real-world recipes for automating development workflows with Junie in GitLab. Ea
 
 ## Prerequisites
 
-Before using these recipes, complete the basic setup described in [README.md](./README.md#setup). You'll need:
-- `JUNIE_API_KEY` and `GITLAB_TOKEN_FOR_JUNIE` configured in GitLab CI/CD variables
-- `.gitlab-ci.yml` file with Junie stages added
+Before using these recipes, complete the basic setup described in [README.md](./README.md#setup) in the *Setup* section. You'll need:
+- `JUNIE_API_KEY` and `GITLAB_TOKEN_FOR_JUNIE` configured in GitLab CI/CD variables of the Junie Workspace project
+- `.gitlab-ci.yml` file with Junie stages added to the Junie Workspace project's main branch
+- A project initialization being done using the `junie-init` job
+- If your task requires MCP support, make sure MCP support is enabled (an automatically generated webhook should contain `USE_MCP` variable set to `"true"`)
 
 ---
 
-## Initial Configuration
 
-**Run this once per repository** to set up the webhook that enables Junie to respond to comments and events.
+## Basic Usage
 
-<details>
-<summary>View junie-init job configuration</summary>
+Mention `#junie` in any comment on merge requests or issues:
+   - `#junie implement email validation` on an issue → Junie creates an MR with the implementation
+   - `#junie add error handling here` on an MR → Junie implements the changes
+   - `#junie fix the bug in login flow` → Junie analyzes and proposes a solution
 
-```yaml
-# .gitlab-ci.yml
-stages:
-  - junie
-
-junie-init:
-  stage: junie
-  image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
-  script:
-    - node /app/dist/cli.js init --verbose
-  when: manual
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "api"
-      when: never
-    - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - .gitlab-ci.yml
-      when: manual
-```
-
-</details>
-
-**How to run:**
-1. Add this job to your `.gitlab-ci.yml`
-2. Go to **CI/CD → Pipelines** in GitLab
-3. Run the `junie-init` job manually
-4. This creates a webhook in **Settings → Webhooks** that triggers pipelines when users mention `@junie`
-
-**Important:** You only need to run this once. After that, Junie will automatically respond to mentions in comments.
-
----
-
-## Basic Interactive Setup
-
-**Use this as your starting point.** This workflow enables interactive Junie assistance across merge requests and issues - respond to `@junie` mentions anywhere in your repository.
-
-**Prerequisites:** Make sure you've completed the [Initial Configuration](#initial-configuration) step above.
-
-<details>
-<summary>View complete workflow</summary>
-
-```yaml
-# .gitlab-ci.yml
-stages:
-  - junie
-
-junie-run:
-  stage: junie
-  image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
-  script:
-    - node /app/dist/cli.js run --cleanup --verbose
-  after_script:
-    - mkdir -p junie-artifacts/working-directory
-    - mkdir -p junie-artifacts/logs
-    - mkdir -p junie-artifacts/sessions
-    - cp -R /junieCache/. ./junie-artifacts/working-directory/ 2>/dev/null || true
-    - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
-    - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
-  rules:
-    # Only run for comment events that mention @junie (case insensitive)
-    # This prevents creating pipelines for every comment
-    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "note" && $COMMENT_TEXT =~ /@junie(\s|$)/i
-      when: always
-    - when: never
-  variables:
-    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude instead of Gemini for MCP compatibility
-  artifacts:
-    paths:
-      - junie-artifacts/working-directory
-      - junie-artifacts/logs
-      - junie-artifacts/sessions
-    expire_in: 1 week
-    when: always
-```
-
-</details>
-
-**How to use:**
-1. Mention `@junie` in any comment on merge requests or issues:
-   - `@junie implement email validation` on an issue → Junie creates an MR with the implementation
-   - `@junie add error handling here` on an MR → Junie implements the changes
-   - `@junie fix the bug in login flow` → Junie analyzes and proposes a solution
-
-**Performance optimization:**
-The `rules` section includes `$COMMENT_TEXT =~ /@junie(\s|$)/i` which checks if the comment contains "@junie" (case insensitive) BEFORE starting the pipeline. This prevents creating unnecessary pipelines for every comment in your repository - pipelines only start when Junie is properly mentioned with @.
-
-**Features enabled:**
-- Works on merge requests, issues, and comments
-- Only triggers on explicit `@junie` mentions (with @)
-- Filters comments at CI rules level (before pipeline starts)
 ---
 
 ## 1. Automated Code Review
@@ -116,85 +28,29 @@ The `rules` section includes `$COMMENT_TEXT =~ /@junie(\s|$)/i` which checks if 
 
 **Solution:** Junie automatically reviews every MR, leaving structured feedback with actionable suggestions.
 
-### Option A: Automatic Code Review on Every MR Update (Recommended)
-
-Automatically reviews every MR when it's opened or updated:
-
-<details>
-<summary>View complete workflow</summary>
-
-```yaml
-# Add to your .gitlab-ci.yml
-junie-auto-code-review:
-  stage: junie
-  image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
-  script:
-    - node /app/dist/cli.js run --prompt "code-review" --verbose
-  after_script:
-    - mkdir -p junie-artifacts/working-directory
-    - mkdir -p junie-artifacts/logs
-    - mkdir -p junie-artifacts/sessions
-    - cp -R /junieCache/. ./junie-artifacts/working-directory/ 2>/dev/null || true
-    - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
-    - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
-  rules:
-    # Only run for MR events, skip on close or merge
-    - if: $CI_PIPELINE_SOURCE == "api" && $EVENT_KIND == "merge_request" && $MR_EVENT_ACTION != "close" && $MR_EVENT_ACTION != "merge"
-      when: always
-    - when: never
-  variables:
-    USE_MCP: "true"
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude for MCP compatibility
-  artifacts:
-    paths:
-      - junie-artifacts/working-directory
-      - junie-artifacts/logs
-      - junie-artifacts/sessions
-    expire_in: 1 week
-    when: always
-```
-
-</details>
-
-**How it works:**
-1. Triggers automatically when MR is opened or updated
-2. Uses built-in `code-review` prompt for structured, opinionated review
-3. Posts inline comments on specific lines using GitLab MCP tools (when `USE_MCP: "true"`)
-4. Provides comprehensive review summary
-
-**The built-in code review focuses on:**
-- **Repository style adherence** - naming, formatting, package structure
-- **Avoiding overcomplications** - premature abstractions, unnecessary indirection
-- **Security, performance, error handling** - only for obviously applicable cases
-- **Best practices** - following language and framework conventions
-
-### Option B: On-Demand Code Review via Comments
+### Option A: On-Demand Code Review via Comments
 
 Trigger code reviews on-demand by mentioning Junie in comments:
 
 ```
-@junie code-review
+#junie code-review
 ```
 
 **Requirements:**
-- Complete [Initial Configuration](#initial-configuration) (run `junie-init` once)
-- Make sure `junie-run` job is configured (see [Basic Interactive Setup](#basic-interactive-setup))
-- **Important:** Add MCP support to your `junie-run` job for inline code comments:
-
-```yaml
-junie-run:
-  # ... other configuration ...
-  variables:
-    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
-    USE_MCP: "true"  # Required for inline comments
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # MCP requires Claude model
-```
+- Complete [Initial Setup](./README.md#setup) (run `junie-init` once per project)
+- **Important:** Make sure MCP support is enabled
 
 **How it works:**
-1. Write `@junie code-review` in any MR comment
+1. Write `#junie code-review` in any MR comment
 2. Junie analyzes the MR diff and provides a structured review
 3. Posts inline comments on specific lines (when MCP is enabled)
 4. Provides comprehensive review summary
+
+
+### Option B: Automatic Code Review on Every MR Update
+
+> 🚧 This flow is still in progress
+
 
 ---
 
@@ -207,25 +63,15 @@ junie-run:
 Trigger CI failure analysis by mentioning Junie in MR comments:
 
 ```
-@junie fix-ci
+#junie fix-ci
 ```
 
 **Requirements:**
-- Complete [Initial Configuration](#initial-configuration) (run `junie-init` once)
-- Make sure `junie-run` job is configured (see [Basic Interactive Setup](#basic-interactive-setup))
-- **Important:** Add MCP support to your `junie-run` job for better analysis:
-
-```yaml
-junie-run:
-  # ... other configuration ...
-  variables:
-    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
-    USE_MCP: "true"  # Required for pipeline analysis
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # MCP requires Claude model
-```
+- Complete [Initial Setup](./README.md#setup) (run `junie-init` once per project)
+- **Important:** Make sure MCP support is enabled
 
 **How it works:**
-1. Write `@junie fix-ci` in any MR comment where tests have failed
+1. Write `#junie fix-ci` in any MR comment where tests have failed
 2. Junie finds the most recent **failed** pipeline for the MR (skips running/pending pipelines)
 3. Uses GitLab MCP tools to:
    - Get all jobs from the pipeline
@@ -245,36 +91,26 @@ junie-run:
 Trigger minor fixes by mentioning Junie in MR comments with your request:
 
 ```
-@junie minor-fix rename userId to customerId
-@junie minor-fix add input validation for email field
-@junie minor-fix fix typo in error message
+#junie minor-fix rename userId to customerId
+#junie minor-fix add input validation for email field
+#junie minor-fix fix typo in error message
 ```
 
 **Requirements:**
-- Complete [Initial Configuration](#initial-configuration) (run `junie-init` once)
-- Make sure `junie-run` job is configured (see [Basic Interactive Setup](#basic-interactive-setup))
-- **Important:** Add MCP support to your `junie-run` job for better MR analysis:
-
-```yaml
-junie-run:
-  # ... other configuration ...
-  variables:
-    JUNIE_BOT_TAGGING_PATTERN: "junie[-a-zA-Z0-9]*"
-    USE_MCP: "true"  # Required for MR diff analysis
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # MCP requires Claude model
-```
+- Complete [Initial Setup](./README.md#setup) (run `junie-init` once per project)
+- **Important:** Make sure MCP support is enabled
 
 **How it works:**
-1. Write `@junie minor-fix <your request>` in any MR comment
+1. Write `#junie minor-fix <your request>` in any MR comment
 2. Junie retrieves the MR diff using GitLab MCP tools
 3. Understands the context and identifies relevant files
 4. Makes the requested changes to the codebase
 5. The system automatically commits and pushes the changes
 
 **Examples:**
-- `@junie minor-fix rename the function processData to handleUserData`
-- `@junie minor-fix add error handling for null values in the login method`
-- `@junie minor-fix update the comment to explain the algorithm better`
+- `#junie minor-fix rename the function processData to handleUserData`
+- `#junie minor-fix add error handling for null values in the login method`
+- `#junie minor-fix update the comment to explain the algorithm better`
 
 **Guidelines:**
 - Keep requests small and focused (one or two changes at a time)
