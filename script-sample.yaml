@@ -59,7 +59,7 @@ junie-run:
     GITLAB_TOKEN_FOR_JUNIE: "$INPUT_TOKEN"
     # Pattern for matching Junie bot mentions inside the wrapper code
     # NOTE: Keep this in sync with JUNIE_MENTION_TRIGGER and the regex in rules above
-    JUNIE_MODEL: "claude-sonnet-4-6"  # Use Claude instead of Gemini for MCP compatibility
+    JUNIE_MODEL: "sonnet"  # Use Claude instead of Gemini for MCP compatibility
   artifacts:
     reports:
       dotenv: junie-artifacts/working-directory/wrapper-outputs.env

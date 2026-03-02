@@ -15,7 +15,7 @@ junie-run:
     - cp -R ~/.junie/logs/. ./junie-artifacts/logs/ 2>/dev/null || true
     - cp -R ~/.junie/sessions/. ./junie-artifacts/sessions/ 2>/dev/null || true
   variables:
-    JUNIE_MODEL: "claude-sonnet-4-5-20250929"  # Use Claude instead of Gemini for MCP compatibility
+    JUNIE_MODEL: "sonnet"  # Use Claude instead of Gemini for MCP compatibility
   artifacts:
     reports:
       dotenv: junie-artifacts/working-directory/wrapper-outputs.env
