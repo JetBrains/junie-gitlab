@@ -130,7 +130,9 @@ export async function execute(context: GitLabExecutionContext) {
 
         let createdMrUrl: string | null = null;
 
-        if ((taskExtractionResult instanceof MergeRequestCommentTask || taskExtractionResult instanceof MergeRequestEventTask)
+        if (junieTask.codeReviewTask) {
+            // Code review: skip all git operations, just post the comment
+        } else if ((taskExtractionResult instanceof MergeRequestCommentTask || taskExtractionResult instanceof MergeRequestEventTask)
             && context.cliOptions.mrMode === "append"
             && branchToPull !== context.defaultBranch) {
             await pushChangesToTheSameBranch(

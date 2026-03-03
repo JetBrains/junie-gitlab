@@ -11,8 +11,9 @@ import {
     JUNIE_NO_CHANGES_MESSAGE,
     MR_LINK_PREFIX,
     MR_INTRO_HEADER,
+    CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
 } from "../constants/gitlab.js";
-import {IssueCommentEventContext, MergeRequestCommentEventContext, MergeRequestEventContext} from "../context.js";
+import {IssueCommentEventContext, isMRCommandEvent, MergeRequestCommentEventContext, MergeRequestEventContext} from "../context.js";
 import {GitLabPromptFormatter} from "../utils/gitlab-prompt-formatter.js";
 import {FetchedData} from "../api/gitlab-data-fetcher.js";
 
@@ -28,6 +29,7 @@ export class FailedTaskExtractionResult {
 
 export interface JunieTask {
     task?: string;
+    codeReviewTask?: { diffCommand: string };
 }
 
 export interface SuccessfulTaskExtractionResult {
@@ -120,6 +122,11 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
         const { customPrompt } = this.context;
 
+        if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, this.context, customPrompt ?? undefined)) {
+            const diffCommand = `git diff origin/${this.context.mergeRequestTargetBranch}...`;
+            return { codeReviewTask: { diffCommand } };
+        }
+
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(
             this.context,
@@ -196,6 +203,11 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
         const { customPrompt } = this.context;
+
+        if (customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt)) {
+            const diffCommand = `git diff origin/${this.context.mrEventTargetBranch}...`;
+            return { codeReviewTask: { diffCommand } };
+        }
 
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(
