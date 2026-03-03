@@ -8,7 +8,7 @@ const git = simpleGit({
 });
 
 let gitIsInitialized = false;
-async function initGit() {
+export async function initGit() {
     if (!gitIsInitialized) {
         await git.init();
         await git.addConfig('user.name', 'Junie', false, 'global');

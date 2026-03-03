@@ -12,6 +12,7 @@ import {
     MR_LINK_PREFIX,
     MR_INTRO_HEADER,
     CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
+    generateMcpNote,
 } from "../constants/gitlab.js";
 import {IssueCommentEventContext, isMRCommandEvent, MergeRequestCommentEventContext, MergeRequestEventContext} from "../context.js";
 import {GitLabPromptFormatter} from "../utils/gitlab-prompt-formatter.js";
@@ -29,7 +30,7 @@ export class FailedTaskExtractionResult {
 
 export interface JunieTask {
     task?: string;
-    codeReviewTask?: { diffCommand: string };
+    codeReviewTask?: { diffCommand: string; description?: string };
 }
 
 export interface SuccessfulTaskExtractionResult {
@@ -124,7 +125,12 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
 
         if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, this.context, customPrompt ?? undefined)) {
             const diffCommand = `git diff origin/${this.context.mergeRequestTargetBranch}...`;
-            return { codeReviewTask: { diffCommand } };
+            const description = useMcp ? generateMcpNote({
+                projectId: this.context.projectId,
+                mergeRequestId: this.context.mergeRequestId,
+                commentId: this.context.commentId,
+            }) : undefined;
+            return { codeReviewTask: { diffCommand, description } };
         }
 
         // Use GitLabPromptFormatter for rich context
@@ -206,7 +212,11 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
 
         if (customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt)) {
             const diffCommand = `git diff origin/${this.context.mrEventTargetBranch}...`;
-            return { codeReviewTask: { diffCommand } };
+            const description = useMcp ? generateMcpNote({
+                projectId: this.context.projectId,
+                mergeRequestId: this.context.mrEventId,
+            }) : undefined;
+            return { codeReviewTask: { diffCommand, description } };
         }
 
         // Use GitLabPromptFormatter for rich context

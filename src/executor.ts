@@ -11,7 +11,7 @@ import {
     checkForChanges,
     checkoutBranch,
     checkoutLocalBranch,
-    commitGitChanges,
+    commitGitChanges, initGit,
     pushGitChanges
 } from "./api/git-api.js";
 import {
@@ -131,7 +131,7 @@ export async function execute(context: GitLabExecutionContext) {
         let createdMrUrl: string | null = null;
 
         if (junieTask.codeReviewTask) {
-            // Code review: skip all git operations, just post the comment
+            await initGit()
         } else if ((taskExtractionResult instanceof MergeRequestCommentTask || taskExtractionResult instanceof MergeRequestEventTask)
             && context.cliOptions.mrMode === "append"
             && branchToPull !== context.defaultBranch) {
