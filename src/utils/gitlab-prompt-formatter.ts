@@ -10,8 +10,6 @@ import {
     MergeRequestEventContext
 } from "../context.js";
 import {
-    CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
-    createCodeReviewPrompt,
     createFixCIFailuresPrompt,
     createMinorFixPrompt,
     FIX_CI_TRIGGER_PHRASE_REGEXP,
@@ -75,11 +73,6 @@ export class GitLabPromptFormatter {
                 );
             }
 
-            if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
-                // Use specialized code review prompt
-                return createCodeReviewPrompt(context.mergeRequestId);
-            }
-
             if (isMRCommandEvent(FIX_CI_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
                 const pipeline = await getLastCompletedPipelineForMR(context.projectId, context.mergeRequestId);
 
@@ -100,13 +93,6 @@ export class GitLabPromptFormatter {
             mrOrIssueInfo = this.getIssueInfo(fetchedData, userInstruction);
             discussionsInfo = this.getDiscussionsInfo(fetchedData);
         } else if (isMergeRequestEvent(context)) {
-            // Check if this is a code review request
-            const isCodeReview = customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt);
-
-            if (isCodeReview) {
-                return createCodeReviewPrompt(context.mrEventId);
-            }
-
             userInstruction = this.getUserInstructionForMREvent(context, customPrompt);
             mrOrIssueInfo = this.getMRInfo(fetchedData, userInstruction);
             commitsInfo = this.getCommitsInfo(fetchedData);

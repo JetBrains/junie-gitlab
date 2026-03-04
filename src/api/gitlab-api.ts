@@ -8,6 +8,7 @@ import {
 import {webhookEnv} from "../webhook-env.js";
 import {AccessTokenExposedSchema, IssueSchema} from "@gitbeaker/core";
 import {logger} from "../utils/logging.js";
+import {withRetry} from "../utils/retry.js";
 import * as fs from 'fs';
 import {Blob} from 'buffer';
 
@@ -22,26 +23,24 @@ export const api = new Gitlab({
 
 export function getIssue(projectId: number, issueId: number): Promise<IssueSchema> {
     logger.debug(`Fetching issue ${issueId} from the project ${projectId}`);
-    return api.Issues.show(issueId, {projectId});
+    return withRetry(() => api.Issues.show(issueId, {projectId}), `issue ${issueId}`);
 }
 
 export async function addIssueComment(projectId: number, issueId: number, body: string): Promise<IssueNoteSchema> {
     logger.debug(`Adding comment to issue ${issueId} in project ${projectId}`);
-    return await api.IssueNotes.create(projectId, issueId, body);
+    return withRetry(() => api.IssueNotes.create(projectId, issueId, body), `issue comment ${issueId}`);
 }
 
 export async function addIssueCommentEmoji(projectId: number, issueId: number, noteId: number, emoji: string) {
-    await api.IssueNoteAwardEmojis.award(
-        projectId,
-        issueId,
-        noteId,
-        emoji,
-    )
+    await withRetry(
+        () => api.IssueNoteAwardEmojis.award(projectId, issueId, noteId, emoji),
+        `emoji ${emoji} on comment ${noteId} in issue ${issueId}`
+    );
 }
 
 export async function getMergeRequest(projectId: number, mergeRequestId: number): Promise<ExpandedMergeRequestSchema> {
     logger.debug(`Fetching merge request ${mergeRequestId} from project ${projectId}`);
-    return api.MergeRequests.show(projectId, mergeRequestId);
+    return withRetry(() => api.MergeRequests.show(projectId, mergeRequestId), `MR ${mergeRequestId}`);
 }
 
 export async function addMergeRequestNote(
@@ -50,7 +49,10 @@ export async function addMergeRequestNote(
     body: string
 ) {
     logger.debug(`Adding note to merge request ${mergeRequestId} in project ${projectId}`);
-    return await api.MergeRequestNotes.create(projectId, mergeRequestId, body);
+    return withRetry(
+        () => api.MergeRequestNotes.create(projectId, mergeRequestId, body),
+        `note in MR ${mergeRequestId}`
+    );
 }
 
 export async function addMergeRequestDiscussionNote(
@@ -60,7 +62,10 @@ export async function addMergeRequestDiscussionNote(
     body: string
 ) {
     logger.debug(`Adding note to discussion ${discussionId} in merge request ${mergeRequestId} of project ${projectId}`);
-    return await api.MergeRequestDiscussions.addNote(projectId, mergeRequestId, discussionId, body);
+    return withRetry(
+        () => api.MergeRequestDiscussions.addNote(projectId, mergeRequestId, discussionId, body),
+        `discussion note ${discussionId} in MR ${mergeRequestId}`
+    );
 }
 
 export async function createMergeRequest(
@@ -71,20 +76,15 @@ export async function createMergeRequest(
     description: string
 ) {
     logger.debug(`Creating merge request in project ${projectId} from ${sourceBranch} to ${targetBranch}`);
-    return await api.MergeRequests.create(
-        projectId,
-        sourceBranch,
-        targetBranch,
-        title,
-        {
-            description,
-        }
+    return withRetry(
+        () => api.MergeRequests.create(projectId, sourceBranch, targetBranch, title, { description }),
+        `create MR from ${sourceBranch} to ${targetBranch}`
     );
 }
 
 export async function deletePipeline(projectId: number, pipelineId: number): Promise<void> {
     logger.debug(`Deleting pipeline ${pipelineId} from project ${projectId}`);
-    return await api.Pipelines.remove(projectId, pipelineId);
+    return withRetry(() => api.Pipelines.remove(projectId, pipelineId), `delete pipeline ${pipelineId}`);
 }
 
 export async function runPipeline(
@@ -93,7 +93,10 @@ export async function runPipeline(
     variables: PipelineVariableSchema[]
 ) {
     logger.debug(`Running pipeline for project ${projectId} on ref ${ref} with variables: ${JSON.stringify(variables || {})}`);
-    return await api.Pipelines.create(projectId, ref, { variables });
+    return withRetry(
+        () => api.Pipelines.create(projectId, ref, { variables }),
+        `run pipeline on ${ref}`
+    );
 }
 
 async function getAllPaginated<T>(
@@ -104,7 +107,10 @@ async function getAllPaginated<T>(
     let page = 1;
     const perPage = 100;
     while (true) {
-        const response = await fetchFn(page, perPage);
+        const response = await withRetry(
+            () => fetchFn(page, perPage),
+            `fetch page ${page} of ${resourceName}`
+        );
         if (!response || response.length === 0) {
             break;
         }
@@ -141,17 +147,17 @@ export async function getAllGroupAccessTokens(groupId: number): Promise<AccessTo
 
 export async function getUserById(userId: number): Promise<UserSchema> {
     logger.debug(`Fetching user ${userId}`);
-    return await api.Users.show(userId);
+    return withRetry(() => api.Users.show(userId), `user ${userId}`);
 }
 
 export async function getProjectById(projectId: number): Promise<ProjectSchema> {
     logger.debug(`Fetching project ${projectId}`);
-    return await api.Projects.show(projectId);
+    return withRetry(() => api.Projects.show(projectId), `project ${projectId}`);
 }
 
 export async function getGroupById(groupId: number): Promise<ExpandedGroupSchema> {
     logger.debug(`Fetching group ${groupId}`);
-    return await api.Groups.show(groupId);
+    return withRetry(() => api.Groups.show(groupId), `group ${groupId}`);
 }
 
 export async function recursivelyGetAllProjectTokens(projectId: number): Promise<AccessTokenSchema[]> {
@@ -205,7 +211,7 @@ export async function recursivelyGetAllProjectTokens(projectId: number): Promise
 
 export async function getAllProjectHooks(projectId: number): Promise<ProjectHookSchema[]> {
     logger.debug(`Fetching all webhooks for project ${projectId}`);
-    return api.ProjectHooks.all(projectId);
+    return withRetry(() => api.ProjectHooks.all(projectId), `project hooks for ${projectId}`);
 }
 
 export async function createProjectHook(
@@ -229,7 +235,7 @@ export async function createProjectHook(
     }
 ) {
     logger.debug(`Creating webhook for project ${projectId} with URL ${url}`);
-    return await api.ProjectHooks.add(projectId, url, options);
+    return withRetry(() => api.ProjectHooks.add(projectId, url, options), `create hook for project ${projectId}`);
 }
 
 /**
@@ -241,7 +247,10 @@ export async function getLastCompletedPipelineForMR(projectId: number, mergeRequ
     logger.debug(`Fetching pipelines for MR ${mergeRequestId} in project ${projectId}`);
 
     // Get all pipelines for this MR (already sorted by ID descending - newest first)
-    const pipelines = await api.MergeRequests.allPipelines(projectId, mergeRequestId);
+    const pipelines = await withRetry(
+        () => api.MergeRequests.allPipelines(projectId, mergeRequestId),
+        `pipelines for MR ${mergeRequestId}`
+    );
 
     // Find the most recent FAILED pipeline
     // Skip running/pending/created pipelines as they might be the current Junie pipeline
@@ -258,7 +267,7 @@ export async function getLastCompletedPipelineForMR(projectId: number, mergeRequ
 
 export async function getAllPipelineTriggerTokens(projectId: number): Promise<PipelineTriggerTokenSchema[]> {
     logger.debug(`Fetching all pipeline trigger tokens for project ${projectId}`);
-    return await api.PipelineTriggerTokens.all(projectId);
+    return withRetry(() => api.PipelineTriggerTokens.all(projectId), `pipeline trigger tokens for project ${projectId}`);
 }
 
 export async function createPipelineTriggerToken(
@@ -266,7 +275,10 @@ export async function createPipelineTriggerToken(
     description: string
 ): Promise<PipelineTriggerTokenSchema> {
     logger.debug(`Creating pipeline trigger token for project ${projectId} with description: ${description}`);
-    return await api.PipelineTriggerTokens.create(projectId, description);
+    return withRetry(
+        () => api.PipelineTriggerTokens.create(projectId, description),
+        `create pipeline trigger token for project ${projectId}`
+    );
 }
 
 export async function deletePipelineTriggerToken(
@@ -274,7 +286,10 @@ export async function deletePipelineTriggerToken(
     tokenId: number
 ): Promise<void> {
     logger.debug(`Deleting pipeline trigger token ${tokenId} from project ${projectId}`);
-    return await api.PipelineTriggerTokens.remove(projectId, tokenId);
+    return withRetry(
+        () => api.PipelineTriggerTokens.remove(projectId, tokenId),
+        `delete pipeline trigger token ${tokenId}`
+    );
 }
 
 export async function createProjectAccessToken(
@@ -286,12 +301,15 @@ export async function createProjectAccessToken(
     expiresAt: string
 ): Promise<AccessTokenExposedSchema> {
     logger.debug(`Creating project access token "${name}" for project ${projectId} with scopes: ${scopes.join(', ')}`);
-    return await api.ProjectAccessTokens.create(projectId, name, scopes, expiresAt, { accessLevel, description } as any);
+    return withRetry(
+        () => api.ProjectAccessTokens.create(projectId, name, scopes, expiresAt, { accessLevel, description } as any),
+        `create access token "${name}" for project ${projectId}`
+    );
 }
 
 export async function getProjectCiConfigPath(projectId: number): Promise<string | null> {
     logger.debug(`Fetching CI config path for project ${projectId}`);
-    const project = await api.Projects.show(projectId);
+    const project = await withRetry(() => api.Projects.show(projectId), `CI config path for project ${projectId}`);
     return (project.ci_config_path as string | null | undefined) ?? null;
 }
 
@@ -300,7 +318,10 @@ export async function updateProjectCiConfigPath(
     ciConfigPath: string | null,
 ): Promise<ProjectSchema> {
     logger.debug(`Updating CI config path for project ${projectId} to: ${ciConfigPath}`);
-    return await api.Projects.edit(projectId, { ciConfigPath } as any);
+    return withRetry(
+        () => api.Projects.edit(projectId, { ciConfigPath } as any),
+        `update CI config path for project ${projectId}`
+    );
 }
 
 export async function setJunieAvatar(userId: number): Promise<UserSchema> {
@@ -311,5 +332,5 @@ export async function setJunieAvatar(userId: number): Promise<UserSchema> {
         content: new Blob([avatarData]),
         filename: 'junie-logo.png',
     };
-    return await api.Users.edit(userId, { avatar: data });
+    return withRetry(() => api.Users.edit(userId, { avatar: data }), `set avatar for user ${userId}`);
 }

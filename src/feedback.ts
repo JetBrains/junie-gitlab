@@ -22,24 +22,23 @@ export async function submitFeedback(request: FeedbackRequest) {
             logger.debug(`Failed to add emoji ${request.emoji} to comment ${request.commentId} in issue ${request.issueId} (probably it's already set)`);
         }
     } else if (request instanceof IssueCommentRequest) {
-        await addIssueComment(
-            request.projectId,
-            request.issueId,
-            request.commentText
-        );
+        try {
+            await addIssueComment(request.projectId, request.issueId, request.commentText);
+        } catch (e) {
+            logger.error(`Failed to add comment to issue ${request.issueId}`, e);
+        }
     } else if (request instanceof MergeRequestDiscussionRequest) {
-        await addMergeRequestDiscussionNote(
-            request.projectId,
-            request.mergeRequestId,
-            request.discussionId,
-            request.commentText,
-        );
+        try {
+            await addMergeRequestDiscussionNote(request.projectId, request.mergeRequestId, request.discussionId, request.commentText);
+        } catch (e) {
+            logger.error(`Failed to add note to discussion ${request.discussionId} in merge request ${request.mergeRequestId}`, e);
+        }
     } else if (request instanceof MergeRequestNoteRequest) {
-        await addMergeRequestNote(
-            request.projectId,
-            request.mergeRequestId,
-            request.commentText,
-        );
+        try {
+            await addMergeRequestNote(request.projectId, request.mergeRequestId, request.commentText);
+        } catch (e) {
+            logger.error(`Failed to add note to merge request ${request.mergeRequestId}`, e);
+        }
     } else {
         throw new Error(`Unsupported feedback request type: ${request.constructor.name}`);
     }
