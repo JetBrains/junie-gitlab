@@ -50,6 +50,17 @@ For the stage `junie-run` you can also set the following environment variables t
 | `JUNIE_GUIDELINES_FILENAME`    | `guidelines.md` | Filename of the guidelines file (should be in `<project-root>/.junie` dir)  |
 | `USE_MCP`                      | `true`          | Enable GitLab MCP tools for inline code review comments                     |
 
+## Features
+
+### 📎 Attachment Support
+
+Junie automatically downloads and processes attachments from GitLab markdown content:
+
+- **How it works**:
+  - Detects GitLab upload URLs (e.g., `/uploads/abc123/image.png`)
+  - Downloads attachments to local temporary storage
+  - Replaces URLs with local file paths in prompts
+
 ## Commands
 
 ### `init`
