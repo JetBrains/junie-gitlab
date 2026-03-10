@@ -19,7 +19,7 @@
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",
     "commander": "^12.1.0",
-    "simple-git": "^3.30.0",
+    "simple-git": "^3.32.3",
     "winston": "^3.19.0"
   },
   "devDependencies": {
