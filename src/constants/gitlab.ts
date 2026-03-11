@@ -76,6 +76,7 @@ export function generateMcpNote(params: { projectId: number; issueId?: number; m
  * @returns The formatted minor-fix prompt
  */
 export function createMinorFixPrompt(projectId: number, mergeRequestId: number, userRequest?: string): string {
+    const issueDescriptionSection = `<issue_description>`;
     const userRequestSection = userRequest
         ? `\n### User Request\nThe user has specifically requested: "${userRequest}"\nFocus on addressing this request while following all the guidelines below.\n`
         : '';
@@ -88,6 +89,7 @@ Your task is to make a minor fix to this Merge Request based on the user's reque
 ${userRequestSection}
 ### Steps to follow
 1. Gather Information
+   - Review the MR title, description, comments, and commits in the ${issueDescriptionSection} section below. This is important to ensure we align with the MR intent and decisions being made.
    - Use 'gitlab.get_merge_request_diffs' tool with projectId=${projectId} and mergeRequestIid=${mergeRequestId} to get the MR diff
    - Understand the context of the changes and what the MR is trying to accomplish.${gatherInfoUserRequestNote}
 
@@ -95,6 +97,7 @@ ${userRequestSection}
    - Make the requested changes to the codebase.
    - Keep changes minimal and focused on the specific request.
    - Follow the existing code style and conventions in the repository.
+   - Ensure your fix aligns with the MR's original intent and you take into consideration any decision taken in the MR conversations.
    - Do NOT make unrelated changes or "improvements" beyond what was requested.
 
 3. Validation
@@ -121,40 +124,34 @@ Submit a brief summary of the changes you made and why they address the user's r
  * @returns The formatted fix-ci prompt
  */
 export function createFixCIFailuresPrompt(projectId: number, pipelineId?: number, mergeRequestId?: number): string {
+    const issueDescriptionSection = `<issue_description>`;
     return `
 Your task is to analyze CI failures and fix them. Follow these steps:
 
 ### Steps to follow
 1. Gather Information
-${pipelineId ? `
-   - Use 'gitlab.list_pipeline_jobs' tool with projectId=${projectId} and pipelineId=${pipelineId} to get all jobs
+${pipelineId ? `   - Use 'gitlab.list_pipeline_jobs' tool with projectId=${projectId} and pipelineId=${pipelineId} to get all jobs
    - Identify which jobs have failed (status: 'failed')
-   - For each failed job, use 'gitlab.get_pipeline_job_output' tool with projectId=${projectId} and jobId to retrieve the job logs
-   ` : ""}
-   ${mergeRequestId ? `- Use 'gitlab.get_merge_request_diffs' tool with projectId=${projectId} and mergeRequestIid=${mergeRequestId} to get the MR diff` : ''}
+   - For each failed job, use 'gitlab.get_pipeline_job_output' tool with projectId=${projectId} and jobId to retrieve the job logs` : ''}
+   - If NO failed jobs were found, stop and submit IMMEDIATELY, reporting that there are no failures for this pipeline. Do not check anything else.
+   - If failed jobs WERE found, review the MR title, description, comments, and commits in the ${issueDescriptionSection} section below. This is important to ensure we align with the MR intent and decisions being made.
+${mergeRequestId ? `   - If failed jobs WERE found, use 'gitlab.get_merge_request_diffs' tool with projectId=${projectId} and mergeRequestIid=${mergeRequestId} to get the MR diff` : ''}
 
-2. If NO failed jobs were found:
-   - Submit ONLY the following message:
-   ---
-   ## CI Status
-
-   No failed checks found for this pipeline. All CI checks have passed or are still running.
-   ---
-
-3. If failed jobs WERE found, analyze each failure:
+2. If failed jobs WERE found, analyze each failure:
    - Open and explore relevant source files to understand the context
    - Identify the failing step and error message.
    - Determine the root cause (test failure, build error, linting issue, timeout, flaky test, etc.)
-   ${mergeRequestId ? '- Correlate the error with changes in the MR diff.' : '- Determine if the failure is related to recent changes or a pre-existing issue'}
-   ${mergeRequestId ? '- Determine if the failure is related to the MR diff or a pre-existing issue' : ''}
+   - Correlate the error with changes in the MR diff.
+   - Determine if the failure is related to the MR diff or a pre-existing issue
 
-4. Implement the Fix
+3. Implement the Fix
    - Make the necessary changes to fix the CI failures.
    - Keep changes minimal and focused on fixing the specific failures.
    - Follow the existing code style and conventions in the repository.
+   - Ensure your fix aligns with the MR's original intent and you take into consideration any decision taken in the MR conversations.
    - Do NOT make unrelated changes or "improvements" beyond what is needed to fix the CI.
 
-5. Validation
+4. Validation
    - Ensure your changes compile/build successfully.
    - Run relevant tests if applicable.
    - Verify the fix addresses the CI failure. If you are unsure, revert any change made in this session.

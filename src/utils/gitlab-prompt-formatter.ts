@@ -10,6 +10,7 @@ import {
     MergeRequestEventContext
 } from "../context.js";
 import {
+    CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
     createFixCIFailuresPrompt,
     createMinorFixPrompt,
     FIX_CI_TRIGGER_PHRASE_REGEXP,
@@ -91,7 +92,7 @@ export class GitLabPromptFormatter {
             if (isMRCommandEvent(FIX_CI_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
                 const pipeline = await getLastCompletedPipelineForMR(context.projectId, context.mergeRequestId);
 
-                return createFixCIFailuresPrompt(
+                customPrompt = createFixCIFailuresPrompt(
                     context.projectId,
                     pipeline?.id,
                     context.mergeRequestId
@@ -138,7 +139,9 @@ ${actorInfo || ""}
         const discussionId = context.mergeRequestDiscussionId;
         const discussionPrefix = discussionId ? `Discussion #${discussionId}:\n` : '';
 
-        if (customPrompt) {
+        if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, context, customPrompt ?? undefined)) {
+            instruction = 'code-review'
+        } else if (customPrompt) {
             instruction = `${customPrompt}\n\n${discussionPrefix}Comment: ${context.commentText}`;
         } else {
             instruction = discussionPrefix + context.commentText;
@@ -166,8 +169,11 @@ ${instruction}
         context: MergeRequestEventContext,
         customPrompt?: string
     ): string {
-        const instruction = customPrompt || `Handle merge request ${context.mrEventAction}`;
 
+        let instruction = customPrompt || `Handle merge request ${context.mrEventAction}`;
+        if (customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt)) {
+            instruction = 'code-review'
+        }
         return `<user_instruction>
 ${instruction}
 </user_instruction>`;

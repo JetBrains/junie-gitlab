@@ -6,15 +6,19 @@ import {
     MergeRequestNoteRequest
 } from "./feedback-request.js";
 import {
-    JUNIE_STARTED_MESSAGE,
+    CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
     JUNIE_FINISHED_PREFIX,
     JUNIE_NO_CHANGES_MESSAGE,
-    MR_LINK_PREFIX,
+    JUNIE_STARTED_MESSAGE,
     MR_INTRO_HEADER,
-    CODE_REVIEW_TRIGGER_PHRASE_REGEXP,
-    generateMcpNote,
+    MR_LINK_PREFIX,
 } from "../constants/gitlab.js";
-import {IssueCommentEventContext, isMRCommandEvent, MergeRequestCommentEventContext, MergeRequestEventContext} from "../context.js";
+import {
+    isMRCommandEvent,
+    IssueCommentEventContext,
+    MergeRequestCommentEventContext,
+    MergeRequestEventContext
+} from "../context.js";
 import {GitLabPromptFormatter} from "../utils/gitlab-prompt-formatter.js";
 import {FetchedData} from "../api/gitlab-data-fetcher.js";
 
@@ -36,10 +40,15 @@ export interface JunieTask {
 export interface SuccessfulTaskExtractionResult {
     success: true;
     checkoutBranch: string;
+
     generateJuniePrompt(useMcp: boolean): Promise<JunieTask>;
+
     getTitle(): string;
+
     generateMrIntro(outcome: string | null): string;
+
     generateExecutionStartedFeedback(): FeedbackRequest[];
+
     generateExecutionFinishedFeedback(outcome: string | null, taskName: string | null, createdMrUrl: string | null): FeedbackRequest[];
 }
 
@@ -51,10 +60,11 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
         public readonly context: IssueCommentEventContext,
         public readonly fetchedData: FetchedData,
         public readonly checkoutBranch: string,
-    ) {}
+    ) {
+    }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
-        const { customPrompt } = this.context;
+        const {customPrompt} = this.context;
 
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(
@@ -78,7 +88,7 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
     }
 
     generateExecutionStartedFeedback(): FeedbackRequest[] {
-        const { projectId, issueId, commentId } = this.context;
+        const {projectId, issueId, commentId} = this.context;
         return [
             new IssueCommentRequest(projectId, issueId, JUNIE_STARTED_MESSAGE),
             new IssueCommentReactionRequest(projectId, issueId, commentId, "thumbsup"),
@@ -86,7 +96,7 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
     }
 
     generateExecutionFinishedFeedback(outcome: string | null, taskName: string | null, createdMrUrl: string | null): FeedbackRequest[] {
-        const { projectId, issueId } = this.context;
+        const {projectId, issueId} = this.context;
 
         let message = JUNIE_FINISHED_PREFIX;
 
@@ -114,24 +124,15 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
     constructor(
         public readonly context: MergeRequestCommentEventContext,
         public readonly fetchedData: FetchedData,
-    ) { }
+    ) {
+    }
 
     get checkoutBranch(): string {
         return this.context.mergeRequestSourceBranch;
     }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
-        const { customPrompt } = this.context;
-
-        if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, this.context, customPrompt ?? undefined)) {
-            const diffCommand = `git diff origin/${this.context.mergeRequestTargetBranch}...`;
-            const description = useMcp ? generateMcpNote({
-                projectId: this.context.projectId,
-                mergeRequestId: this.context.mergeRequestId,
-                commentId: this.context.commentId,
-            }) : undefined;
-            return { codeReviewTask: { diffCommand, description } };
-        }
+        const {customPrompt} = this.context;
 
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(
@@ -140,6 +141,12 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
             customPrompt ?? undefined,
             useMcp
         );
+
+        if (isMRCommandEvent(CODE_REVIEW_TRIGGER_PHRASE_REGEXP, this.context, customPrompt ?? undefined)) {
+            const diffCommand = `git diff origin/${this.context.mergeRequestTargetBranch}...`;
+            const description = taskText
+            return {codeReviewTask: {diffCommand, description}};
+        }
 
         return {
             task: taskText
@@ -155,7 +162,7 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
     }
 
     generateExecutionStartedFeedback(): FeedbackRequest[] {
-        const { projectId, mergeRequestId, mergeRequestDiscussionId } = this.context;
+        const {projectId, mergeRequestId, mergeRequestDiscussionId} = this.context;
         return [
             new MergeRequestDiscussionRequest(
                 projectId,
@@ -167,7 +174,7 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
     }
 
     generateExecutionFinishedFeedback(outcome: string | null, taskName: string | null, createdMrUrl: string | null): FeedbackRequest[] {
-        const { projectId, mergeRequestId, mergeRequestDiscussionId } = this.context;
+        const {projectId, mergeRequestId, mergeRequestDiscussionId} = this.context;
 
         let message = JUNIE_FINISHED_PREFIX;
 
@@ -201,23 +208,15 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
     constructor(
         public readonly context: MergeRequestEventContext,
         public readonly fetchedData: FetchedData,
-    ) { }
+    ) {
+    }
 
     get checkoutBranch(): string {
         return this.context.mrEventSourceBranch;
     }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
-        const { customPrompt } = this.context;
-
-        if (customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt)) {
-            const diffCommand = `git diff origin/${this.context.mrEventTargetBranch}...`;
-            const description = useMcp ? generateMcpNote({
-                projectId: this.context.projectId,
-                mergeRequestId: this.context.mrEventId,
-            }) : undefined;
-            return { codeReviewTask: { diffCommand, description } };
-        }
+        const {customPrompt} = this.context;
 
         // Use GitLabPromptFormatter for rich context
         const taskText = await this.formatter.generatePrompt(
@@ -226,6 +225,12 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
             customPrompt ?? undefined,
             useMcp
         );
+
+        if (customPrompt && CODE_REVIEW_TRIGGER_PHRASE_REGEXP.test(customPrompt)) {
+            const diffCommand = `git diff origin/${this.context.mrEventTargetBranch}...`;
+            const description = taskText
+            return {codeReviewTask: {diffCommand, description}};
+        }
 
         return {
             task: taskText
@@ -241,7 +246,7 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
     }
 
     generateExecutionStartedFeedback(): FeedbackRequest[] {
-        const { projectId, mrEventId } = this.context;
+        const {projectId, mrEventId} = this.context;
         return [
             new MergeRequestNoteRequest(
                 projectId,
@@ -252,7 +257,7 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
     }
 
     generateExecutionFinishedFeedback(outcome: string | null, taskName: string | null, createdMrUrl: string | null): FeedbackRequest[] {
-        const { projectId, mrEventId } = this.context;
+        const {projectId, mrEventId} = this.context;
 
         let message = JUNIE_FINISHED_PREFIX;
 
