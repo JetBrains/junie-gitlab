@@ -1,6 +1,7 @@
 name: Build and Publish GitLab Wrapper Image
 
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - main
