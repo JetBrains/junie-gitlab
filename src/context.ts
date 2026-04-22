@@ -28,7 +28,14 @@ interface BaseGitLabContext {
     apiV4Url: string;
     defaultBranch: string;
     gitlabToken: string;
-    junieApiKey: string;
+    junieApiKey: string | null;
+
+    // BYOK keys (alternatives to junieApiKey)
+    openaiApiKey: string | null;
+    anthropicApiKey: string | null;
+    grokApiKey: string | null;
+    openrouterApiKey: string | null;
+    googleApiKey: string | null;
 
     // Junie configuration
     junieModel: string | null;
@@ -110,6 +117,21 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         throw new Error("EVENT_KIND is required");
     }
 
+    const junieApiKey = webhookEnv.junieApiKey.value ?? null;
+    const openaiApiKey = webhookEnv.openaiApiKey.value ?? null;
+    const anthropicApiKey = webhookEnv.anthropicApiKey.value ?? null;
+    const grokApiKey = webhookEnv.grokApiKey.value ?? null;
+    const openrouterApiKey = webhookEnv.openrouterApiKey.value ?? null;
+    const googleApiKey = webhookEnv.googleApiKey.value ?? null;
+
+    const hasByokKey = openaiApiKey || anthropicApiKey || grokApiKey || openrouterApiKey || googleApiKey;
+    if (!junieApiKey && !hasByokKey) {
+        throw new Error(
+            "Missing required secret: provide either JUNIE_API_KEY or at least one BYOK key " +
+            "(OPENAI_API_KEY, ANTHROPIC_API_KEY, GROK_API_KEY, OPENROUTER_API_KEY, or GOOGLE_API_KEY)"
+        );
+    }
+
     // Base context shared by all event types
     const baseContext: BaseGitLabContext = {
         // Project info
@@ -122,7 +144,12 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         apiV4Url: webhookEnv.apiV4Url.value!,
         defaultBranch: projectMeta.default_branch,
         gitlabToken: webhookEnv.gitlabToken.value!,
-        junieApiKey: webhookEnv.junieApiKey.value!,
+        junieApiKey,
+        openaiApiKey,
+        anthropicApiKey,
+        grokApiKey,
+        openrouterApiKey,
+        googleApiKey,
 
         // Junie configuration
         junieModel: webhookEnv.junieModel.value,

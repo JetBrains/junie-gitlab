@@ -9,8 +9,9 @@ To use Junie in your instance of GitLab, you need to set up a separate GitLab pr
 Let's do that step-by-step:
 
 1. Create a new project, e.g. "Junie Workspace"
-2. In the CI/CD settings you need to create two new variables:
-   1. `JUNIE_API_KEY` with an auth token for Junie (usually starts with `perm-`)
+2. In the CI/CD settings you need to create the required variables:
+   1. `JUNIE_API_KEY` with an auth token for Junie (usually starts with `perm-`). 
+   **Or**, instead of `JUNIE_API_KEY`, you can provide your own API key for one of the supported providers (BYOK — see the table below).
    2. `GITLAB_TOKEN_FOR_JUNIE` a "master" token for GitLab that will be used for automated projects initialization. It must have enough permissions to manage other projects (e.g. to create new webhooks and to generate project access tokens) and to create new trigger tokens in this new Junie's project. *⚠️ Please limit this variable visibility to `init` environment only, so that it will be used for pipelines initialization and cleanup only and will NOT leak to pipelines created for actual Junie jobs.*
       ![](./doc/img/scr02.png)
 3. Copy the [.gitlab-ci.yml](./script-sample.yaml) file from this repository to the root of the new project in a default branch.
@@ -49,6 +50,11 @@ For the stage `junie-run` you can also set the following environment variables t
 | `JUNIE_MODEL`                  | `null`          | Specific Junie model to use (e.g., `sonnet`, `opus`, `gemini-flash`, `gpt`) |
 | `JUNIE_GUIDELINES_FILENAME`    | `guidelines.md` | Filename of the guidelines file (should be in `<project-root>/.junie` dir)  |
 | `USE_MCP`                      | `true`          | Enable GitLab MCP tools for inline code review comments                     |
+| `OPENAI_API_KEY`               | `null`          | BYOK: OpenAI API key (alternative to `JUNIE_API_KEY`)                       |
+| `ANTHROPIC_API_KEY`            | `null`          | BYOK: Anthropic API key (alternative to `JUNIE_API_KEY`)                    |
+| `GROK_API_KEY`                 | `null`          | BYOK: Grok (xAI) API key (alternative to `JUNIE_API_KEY`)                  |
+| `OPENROUTER_API_KEY`           | `null`          | BYOK: OpenRouter API key (alternative to `JUNIE_API_KEY`)                   |
+| `GOOGLE_API_KEY`               | `null`          | BYOK: Google AI API key (alternative to `JUNIE_API_KEY`)                    |
 
 ## Features
 

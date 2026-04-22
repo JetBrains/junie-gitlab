@@ -50,6 +50,13 @@ export const webhookEnv = {
     gitlabToken: new StringVariable("GITLAB_TOKEN_FOR_JUNIE"),
     junieApiKey: new StringVariable("JUNIE_API_KEY"),
 
+    // BYOK keys (alternative to junieApiKey):
+    openaiApiKey: new StringVariable("OPENAI_API_KEY"),
+    anthropicApiKey: new StringVariable("ANTHROPIC_API_KEY"),
+    grokApiKey: new StringVariable("GROK_API_KEY"),
+    openrouterApiKey: new StringVariable("OPENROUTER_API_KEY"),
+    googleApiKey: new StringVariable("GOOGLE_API_KEY"),
+
     // issues-related env vars:
     issueId: new NumericVariable("ISSUE_ID", "{{issue.iid}}"),
     commentText: new StringVariable("COMMENT_TEXT", "{{object_attributes.note}}"),

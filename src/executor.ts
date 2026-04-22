@@ -64,10 +64,20 @@ export async function execute(context: GitLabExecutionContext) {
                         variables.push({key: value.key, value: value.value});
                     }
                 });
-                variables.push({
-                    key: webhookEnv.junieApiKey.key,
-                    value: webhookEnv.junieApiKey.value!,
-                });
+                if (webhookEnv.junieApiKey.value) {
+                    variables.push({key: webhookEnv.junieApiKey.key, value: webhookEnv.junieApiKey.value});
+                }
+                for (const byokVar of [
+                    webhookEnv.openaiApiKey,
+                    webhookEnv.anthropicApiKey,
+                    webhookEnv.grokApiKey,
+                    webhookEnv.openrouterApiKey,
+                    webhookEnv.googleApiKey,
+                ]) {
+                    if (byokVar.value) {
+                        variables.push({key: byokVar.key, value: byokVar.value});
+                    }
+                }
                 variables.push({
                     key: webhookEnv.gitlabToken.key,
                     value: webhookEnv.gitlabToken.value!,
@@ -117,7 +127,19 @@ export async function execute(context: GitLabExecutionContext) {
         await checkoutBranch(projectPath, branchToPull);
 
         const junieTask = await taskExtractionResult.generateJuniePrompt(context.useMcp);
-        const resultJson = runJunie(junieTask, context.junieApiKey, context.junieModel, context.junieGuidelinesFilename);
+        const resultJson = runJunie(
+            junieTask,
+            context.junieApiKey,
+            {
+                openaiApiKey: context.openaiApiKey,
+                anthropicApiKey: context.anthropicApiKey,
+                grokApiKey: context.grokApiKey,
+                openrouterApiKey: context.openrouterApiKey,
+                googleApiKey: context.googleApiKey,
+            },
+            context.junieModel,
+            context.junieGuidelinesFilename,
+        );
         logger.debug("Full output: " + resultJson.trim());
         const result = JSON.parse(resultJson);
 
@@ -223,8 +245,19 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
     return new FailedTaskExtractionResult(`Unsupported event: ${JSON.stringify(context)}`);
 }
 
-function runJunie(junieTask: JunieTask, apiKey: string, model: string | null, guidelinesFilename: string | null): string {
-    const token = apiKey;
+function runJunie(
+    junieTask: JunieTask,
+    apiKey: string | null,
+    byokKeys: {
+        openaiApiKey: string | null;
+        anthropicApiKey: string | null;
+        grokApiKey: string | null;
+        openrouterApiKey: string | null;
+        googleApiKey: string | null;
+    },
+    model: string | null,
+    guidelinesFilename: string | null,
+): string {
     runCommand(`mkdir -p ${cacheDir}`);
     logger.debug(`Running Junie with task (length: ${junieTask.task?.length ?? 0})`);
 
@@ -236,12 +269,18 @@ function runJunie(junieTask: JunieTask, apiKey: string, model: string | null, gu
     logger.debug(`Junie input written to: ${junieInputFile}`);
 
     try {
+        const authArg = apiKey ? ` --auth "${apiKey}"` : "";
         const modelArg = model ? ` --model="${model}"` : "";
         const guidelinesArg = guidelinesFilename ? ` --guidelines-file="${guidelinesFilename}"` : "";
+        const openaiArg = byokKeys.openaiApiKey ? ` --openai-api-key="${byokKeys.openaiApiKey}"` : "";
+        const anthropicArg = byokKeys.anthropicApiKey ? ` --anthropic-api-key="${byokKeys.anthropicApiKey}"` : "";
+        const grokArg = byokKeys.grokApiKey ? ` --grok-api-key="${byokKeys.grokApiKey}"` : "";
+        const openrouterArg = byokKeys.openrouterApiKey ? ` --openrouter-api-key="${byokKeys.openrouterApiKey}"` : "";
+        const googleArg = byokKeys.googleApiKey ? ` --google-api-key="${byokKeys.googleApiKey}"` : "";
 
         // Read from file via stdin to avoid ARG_MAX limit
         runCommand(
-            `junie --auth "${token}" --cache-dir="${cacheDir}" --output-format="json" --input-format="json" --json-output-file="${junieOutputFile}"${modelArg}${guidelinesArg} < "${junieInputFile}"`,
+            `junie${authArg} --cache-dir="${cacheDir}" --output-format="json" --input-format="json" --json-output-file="${junieOutputFile}"${modelArg}${guidelinesArg}${openaiArg}${anthropicArg}${grokArg}${openrouterArg}${googleArg} < "${junieInputFile}"`,
         );
 
         // Read output from file
