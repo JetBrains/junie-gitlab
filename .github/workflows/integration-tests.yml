@@ -1,0 +1,58 @@
+name: Junie Integration Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.ref, 'refs/heads/dependabot/') }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run Integration Tests in Parallel
+        id: run-tests
+        env:
+          TEST_GITLAB_HOST: ${{ vars.TEST_GITLAB_HOST }}
+          TEST_GITLAB_TOKEN: ${{ secrets.TEST_GITLAB_TOKEN }}
+          TEST_GITLAB_PROJECT_ID: ${{ vars.TEST_GITLAB_PROJECT_ID }}
+        run: |
+          set -o pipefail
+          mkdir -p test-results
+
+          exit_code=0
+          for test_file in tests/integration/*.test.ts; do
+            test_name=$(basename "$test_file" .test.ts)
+            echo "Starting $test_file"
+            bun test "$test_file" 2>&1 | tee "test-results/$test_name.log" &
+          done
+
+          for job in $(jobs -p); do
+            wait $job || exit_code=1
+          done
+
+          echo "All tests completed"
+          exit $exit_code
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-report
+          if-no-files-found: ignore
+          path: ./test-results/
+          retention-days: 2
