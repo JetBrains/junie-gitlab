@@ -35,6 +35,13 @@ export async function checkoutLocalBranch(branchName: string) {
     await git.checkoutLocalBranch(branchName);
 }
 
+export async function fetchBranch(projectPath: string, branchName: string) {
+    logger.info(`Fetching branch ${branchName} from project ${projectPath}`);
+    await initGit();
+    await setRemoteIfNeeded(projectPath);
+    await git.fetch('origin', branchName);
+}
+
 export async function checkoutBranch(projectPath: string, branchName: string) {
     logger.info(`Checking out branch ${branchName} from project ${projectPath}`);
     await initGit();
