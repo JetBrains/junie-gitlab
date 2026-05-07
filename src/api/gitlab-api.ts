@@ -12,14 +12,18 @@ import {withRetry} from "../utils/retry.js";
 import * as fs from 'fs';
 import {Blob} from 'buffer';
 
-const apiHost = (new URL(webhookEnv.apiV4Url.value!)).origin;
-const token = webhookEnv.gitlabToken.value!;
-logger.info(`Using GitLab API host: ${apiHost}`);
-
-export const api = new Gitlab({
-    host: apiHost,
-    token: token,
+export let api = new Gitlab({
+    host: webhookEnv.apiV4Url.value ? (new URL(webhookEnv.apiV4Url.value)).origin : 'https://gitlab.com',
+    token: webhookEnv.gitlabToken.value ?? '',
 });
+
+if (webhookEnv.apiV4Url.value) {
+    logger.info(`Using GitLab API host: ${(new URL(webhookEnv.apiV4Url.value)).origin}`);
+}
+
+export function initApi(host: string, token: string) {
+    api = new Gitlab({ host, token });
+}
 
 export function getIssue(projectId: number, issueId: number): Promise<IssueSchema> {
     logger.debug(`Fetching issue ${issueId} from the project ${projectId}`);
@@ -322,6 +326,134 @@ export async function updateProjectCiConfigPath(
         () => api.Projects.edit(projectId, { ciConfigPath } as any),
         `update CI config path for project ${projectId}`
     );
+}
+
+export async function deleteIssue(projectId: number, issueIid: number): Promise<void> {
+    logger.debug(`Deleting issue ${issueIid} from project ${projectId}`);
+    return withRetry(() => api.Issues.remove(projectId, issueIid), `delete issue ${issueIid}`);
+}
+
+export async function createIssue(projectId: number, title: string, description: string): Promise<any> {
+    logger.debug(`Creating issue "${title}" in project ${projectId}`);
+    return withRetry(() => (api.Issues as any).create(projectId, title, { description }), `create issue in project ${projectId}`);
+}
+
+export async function getIssueNotes(projectId: number, issueIid: number) {
+    logger.debug(`Fetching notes for issue ${issueIid} in project ${projectId}`);
+    return withRetry(() => api.IssueNotes.all(projectId, issueIid), `issue notes ${issueIid}`);
+}
+
+export async function getIssueNoteEmojis(projectId: number, issueIid: number, noteId: number) {
+    logger.debug(`Fetching emojis for note ${noteId} in issue ${issueIid}`);
+    return withRetry(() => api.IssueNoteAwardEmojis.all(projectId, issueIid, noteId), `emojis for note ${noteId}`);
+}
+
+export async function getMRDiffs(projectId: number, mrIid: number): Promise<{ new_path: string; diff: string }[]> {
+    logger.debug(`Fetching diffs for MR ${mrIid} in project ${projectId}`);
+    return withRetry(() => api.MergeRequests.allDiffs(projectId, mrIid) as any, `MR diffs ${mrIid}`);
+}
+
+export async function closeMergeRequest(projectId: number, mrIid: number) {
+    logger.debug(`Closing merge request ${mrIid} in project ${projectId}`);
+    return withRetry(() => api.MergeRequests.edit(projectId, mrIid, { stateEvent: 'close' }), `close MR ${mrIid}`);
+}
+
+export async function getMRNotes(projectId: number, mrIid: number) {
+    logger.debug(`Fetching notes for MR ${mrIid} in project ${projectId}`);
+    return withRetry(() => api.MergeRequestNotes.all(projectId, mrIid), `MR notes ${mrIid}`);
+}
+
+export async function getMRDiscussions(projectId: number, mrIid: number): Promise<any[]> {
+    logger.debug(`Fetching discussions for MR ${mrIid} in project ${projectId}`);
+    return withRetry(() => api.MergeRequestDiscussions.all(projectId, mrIid) as any, `MR discussions ${mrIid}`);
+}
+
+export async function createBranch(projectId: number, branchName: string, ref: string) {
+    logger.debug(`Creating branch ${branchName} from ${ref} in project ${projectId}`);
+    return withRetry(() => api.Branches.create(projectId, branchName, ref), `create branch ${branchName}`);
+}
+
+export async function deleteBranch(projectId: number, branchName: string): Promise<void> {
+    logger.debug(`Deleting branch ${branchName} in project ${projectId}`);
+    return withRetry(() => api.Branches.remove(projectId, branchName), `delete branch ${branchName}`);
+}
+
+export async function createRepositoryFile(projectId: number, filePath: string, branch: string, content: string, commitMessage: string) {
+    logger.debug(`Creating file ${filePath} on branch ${branch} in project ${projectId}`);
+    return withRetry(() => api.RepositoryFiles.create(projectId, filePath, branch, content, commitMessage), `create file ${filePath}`);
+}
+
+async function waitFor<T>(
+    check: () => Promise<T | undefined>,
+    timeoutMessage: string,
+    {timeoutMs = 300000, intervalMs = 5000}: { timeoutMs?: number; intervalMs?: number } = {}
+): Promise<T> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+        const result = await check();
+        if (result !== undefined) return result;
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+    throw new Error(timeoutMessage);
+}
+
+export async function waitForIssueComment(projectId: number, issueIid: number, contentInclude: string, timeoutMs: number = 300000) {
+    return waitFor(
+        async () => (await getIssueNotes(projectId, issueIid)).find(n => n.body.includes(contentInclude)),
+        `Timeout waiting for issue comment containing "${contentInclude}"`,
+        {timeoutMs}
+    );
+}
+
+export async function waitForCommentReaction(projectId: number, issueIid: number, noteId: number, emoji: string = 'thumbsup', timeoutMs: number = 120000) {
+    return waitFor(
+        async () => {
+            const emojis = await getIssueNoteEmojis(projectId, issueIid, noteId);
+            return emojis.some(e => e.name === emoji) ? true as const : undefined;
+        },
+        `Timeout waiting for emoji ${emoji} on issue comment ${noteId}`,
+        {timeoutMs, intervalMs: 2000}
+    );
+}
+
+export async function waitForMRComment(projectId: number, mrIid: number, contentInclude: string, timeoutMs: number = 300000) {
+    return waitFor(
+        async () => (await getMRNotes(projectId, mrIid)).find(n => n.body.includes(contentInclude)),
+        `Timeout waiting for MR comment containing "${contentInclude}"`,
+        {timeoutMs}
+    );
+}
+
+export async function waitForMRFileContent(projectId: number, mrIid: number, filename: string, contentInclude: string, timeoutMs: number = 600000) {
+    await waitFor(
+        async () => {
+            const files = await getMRDiffs(projectId, mrIid);
+            const file = files.find(f => f.new_path === filename);
+            return file?.diff.includes(contentInclude) ? true as const : undefined;
+        },
+        `Timeout waiting for "${contentInclude}" in ${filename}`,
+        {timeoutMs, intervalMs: 10000}
+    );
+}
+
+export async function checkMergeRequestFiles(projectId: number, mrIid: number, expectedFiles: Record<string, string>) {
+    const files = await getMRDiffs(projectId, mrIid);
+    for (const [filename, contentSnippet] of Object.entries(expectedFiles)) {
+        const fileChange = files.find(f => f.new_path === filename);
+        if (!fileChange) return false;
+        if (contentSnippet && !fileChange.diff.includes(contentSnippet)) return false;
+    }
+    return true;
+}
+
+export async function getMRTitle(projectId: number, mrIid: number): Promise<string> {
+    const mr = await getMergeRequest(projectId, mrIid);
+    return (mr as any).title as string;
+}
+
+export function findMergeRequestIidFromComment(comment: { body: string }, mrLinkPrefix: string): number {
+    const mrLink = comment.body.split(mrLinkPrefix)[1]?.trim() ?? "";
+    return parseInt(mrLink.split('/').at(-1) ?? "") || 0;
 }
 
 export async function setJunieAvatar(userId: number): Promise<UserSchema> {
