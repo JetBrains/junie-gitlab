@@ -383,61 +383,57 @@ export async function createRepositoryFile(projectId: number, filePath: string, 
     return withRetry(() => api.RepositoryFiles.create(projectId, filePath, branch, content, commitMessage), `create file ${filePath}`);
 }
 
-export async function waitForIssueComment(projectId: number, issueIid: number, contentInclude: string, timeoutMs: number = 300000) {
+async function waitFor<T>(
+    check: () => Promise<T | undefined>,
+    timeoutMessage: string,
+    {timeoutMs = 300000, intervalMs = 5000}: { timeoutMs?: number; intervalMs?: number } = {}
+): Promise<T> {
     const startTime = Date.now();
     while (Date.now() - startTime < timeoutMs) {
-        const notes = await getIssueNotes(projectId, issueIid);
-        const found = notes.find(n => n.body.includes(contentInclude));
-        if (found) return found;
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        const result = await check();
+        if (result !== undefined) return result;
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
     }
-    throw new Error(`Timeout waiting for issue comment containing "${contentInclude}"`);
+    throw new Error(timeoutMessage);
+}
+
+export async function waitForIssueComment(projectId: number, issueIid: number, contentInclude: string, timeoutMs: number = 300000) {
+    return waitFor(
+        async () => (await getIssueNotes(projectId, issueIid)).find(n => n.body.includes(contentInclude)),
+        `Timeout waiting for issue comment containing "${contentInclude}"`,
+        {timeoutMs}
+    );
 }
 
 export async function waitForCommentReaction(projectId: number, issueIid: number, noteId: number, emoji: string = 'thumbsup', timeoutMs: number = 120000) {
-    const startTime = Date.now();
-    while (Date.now() - startTime < timeoutMs) {
-        const emojis = await getIssueNoteEmojis(projectId, issueIid, noteId);
-        if (emojis.some(e => e.name === emoji)) return true;
-        await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-    throw new Error(`Timeout waiting for emoji ${emoji} on issue comment ${noteId}`);
+    return waitFor(
+        async () => {
+            const emojis = await getIssueNoteEmojis(projectId, issueIid, noteId);
+            return emojis.some(e => e.name === emoji) ? true as const : undefined;
+        },
+        `Timeout waiting for emoji ${emoji} on issue comment ${noteId}`,
+        {timeoutMs, intervalMs: 2000}
+    );
 }
 
 export async function waitForMRComment(projectId: number, mrIid: number, contentInclude: string, timeoutMs: number = 300000) {
-    const startTime = Date.now();
-    while (Date.now() - startTime < timeoutMs) {
-        const notes = await getMRNotes(projectId, mrIid);
-        const found = notes.find(n => n.body.includes(contentInclude));
-        if (found) return found;
-        await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-    throw new Error(`Timeout waiting for MR comment containing "${contentInclude}"`);
+    return waitFor(
+        async () => (await getMRNotes(projectId, mrIid)).find(n => n.body.includes(contentInclude)),
+        `Timeout waiting for MR comment containing "${contentInclude}"`,
+        {timeoutMs}
+    );
 }
 
 export async function waitForMRFileContent(projectId: number, mrIid: number, filename: string, contentInclude: string, timeoutMs: number = 600000) {
-    const startTime = Date.now();
-    while (Date.now() - startTime < timeoutMs) {
-        const files = await getMRDiffs(projectId, mrIid);
-        const file = files.find(f => f.new_path === filename);
-        if (file?.diff.includes(contentInclude)) return;
-        await new Promise(resolve => setTimeout(resolve, 10000));
-    }
-    throw new Error(`Timeout waiting for "${contentInclude}" in ${filename}`);
-}
-
-export async function waitForMRReply(projectId: number, mrIid: number, noteId: number, contentInclude: string, timeoutMs: number = 300000) {
-    const startTime = Date.now();
-    while (Date.now() - startTime < timeoutMs) {
-        const discussions = await getMRDiscussions(projectId, mrIid);
-        const discussion = discussions.find(d => d.notes?.some((n: any) => n.id === noteId));
-        if (discussion) {
-            const reply = discussion.notes.find((n: any) => n.id !== noteId && n.body.includes(contentInclude));
-            if (reply) return reply;
-        }
-        await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-    throw new Error(`Timeout waiting for reply to note ${noteId} containing "${contentInclude}"`);
+    await waitFor(
+        async () => {
+            const files = await getMRDiffs(projectId, mrIid);
+            const file = files.find(f => f.new_path === filename);
+            return file?.diff.includes(contentInclude) ? true as const : undefined;
+        },
+        `Timeout waiting for "${contentInclude}" in ${filename}`,
+        {timeoutMs, intervalMs: 10000}
+    );
 }
 
 export async function checkMergeRequestFiles(projectId: number, mrIid: number, expectedFiles: Record<string, string>) {
