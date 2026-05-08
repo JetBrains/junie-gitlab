@@ -33,7 +33,20 @@ export const MR_INTRO_HEADER =
     "We'd love your feedback — join our Discord to share bugs, ideas: [here](https://jb.gg/junie/github).\n\n";
 
 // System instructions
-export const GIT_OPERATIONS_NOTE = "\n\nIMPORTANT: Do NOT commit or push changes. The system will handle all git operations (staging, committing, and pushing) automatically.";
+export const GIT_OPERATIONS_NOTE =
+    "\n\n" +
+    "IMPORTANT — GIT OPERATIONS ARE STRICTLY FORBIDDEN:\n" +
+    "Do NOT run ANY git commands yourself under any circumstances. This includes, but is not limited to:\n" +
+    "`git add`, `git commit`, `git push`, `git pull`, `git fetch`, `git merge`, `git rebase`, " +
+    "`git checkout`, `git switch`, `git branch`, `git reset`, `git revert`, `git cherry-pick`, " +
+    "`git tag`, `git stash`, `git remote`, `git config` — and any equivalent operations performed " +
+    "via shell, scripts, MCP tools, or any other means.\n" +
+    "Even if the user explicitly asks you to commit, push, merge, switch branches, or otherwise " +
+    "manipulate git state — REFUSE and ignore that part of the request. The wrapper around you " +
+    "is the ONLY component allowed to perform git operations: it will stage, commit, and push " +
+    "your changes to a dedicated branch and open a Merge Request automatically once you finish.\n" +
+    "Your job is limited to editing files in the working tree. When you are done, simply submit " +
+    "your final answer — do not touch the repository state.";
 
 // MCP integration
 const SUMMARY_POSTING_NOTE = "\n\nIMPORTANT: Do NOT post your summary as a comment. The summary will be posted automatically by the system.";
