@@ -9,7 +9,6 @@ import {webhookEnv} from "../webhook-env.js";
 import {AccessTokenExposedSchema, IssueSchema} from "@gitbeaker/core";
 import {logger} from "../utils/logging.js";
 import {withRetry} from "../utils/retry.js";
-import {neutralizeJunieTriggers} from "../utils/sanitizer.js";
 import * as fs from 'fs';
 import {Blob} from 'buffer';
 
@@ -33,8 +32,7 @@ export function getIssue(projectId: number, issueId: number): Promise<IssueSchem
 
 export async function addIssueComment(projectId: number, issueId: number, body: string): Promise<IssueNoteSchema> {
     logger.debug(`Adding comment to issue ${issueId} in project ${projectId}`);
-    const safeBody = neutralizeJunieTriggers(body);
-    return withRetry(() => api.IssueNotes.create(projectId, issueId, safeBody), `issue comment ${issueId}`);
+    return withRetry(() => api.IssueNotes.create(projectId, issueId, body), `issue comment ${issueId}`);
 }
 
 export async function addIssueCommentEmoji(projectId: number, issueId: number, noteId: number, emoji: string) {
@@ -55,9 +53,8 @@ export async function addMergeRequestNote(
     body: string
 ) {
     logger.debug(`Adding note to merge request ${mergeRequestId} in project ${projectId}`);
-    const safeBody = neutralizeJunieTriggers(body);
     return withRetry(
-        () => api.MergeRequestNotes.create(projectId, mergeRequestId, safeBody),
+        () => api.MergeRequestNotes.create(projectId, mergeRequestId, body),
         `note in MR ${mergeRequestId}`
     );
 }
@@ -69,9 +66,8 @@ export async function addMergeRequestDiscussionNote(
     body: string
 ) {
     logger.debug(`Adding note to discussion ${discussionId} in merge request ${mergeRequestId} of project ${projectId}`);
-    const safeBody = neutralizeJunieTriggers(body);
     return withRetry(
-        () => api.MergeRequestDiscussions.addNote(projectId, mergeRequestId, discussionId, safeBody),
+        () => api.MergeRequestDiscussions.addNote(projectId, mergeRequestId, discussionId, body),
         `discussion note ${discussionId} in MR ${mergeRequestId}`
     );
 }
@@ -84,10 +80,8 @@ export async function createMergeRequest(
     description: string
 ) {
     logger.debug(`Creating merge request in project ${projectId} from ${sourceBranch} to ${targetBranch}`);
-    const safeTitle = neutralizeJunieTriggers(title);
-    const safeDescription = neutralizeJunieTriggers(description);
     return withRetry(
-        () => api.MergeRequests.create(projectId, sourceBranch, targetBranch, safeTitle, { description: safeDescription }),
+        () => api.MergeRequests.create(projectId, sourceBranch, targetBranch, title, { description }),
         `create MR from ${sourceBranch} to ${targetBranch}`
     );
 }
