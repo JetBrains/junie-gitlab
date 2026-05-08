@@ -133,6 +133,30 @@ export async function execute(context: GitLabExecutionContext) {
         await checkoutBranch(projectPath, branchToPull);
 
         const junieTask = await taskExtractionResult.generateJuniePrompt(context.useMcp);
+
+        // Decide the working branch BEFORE running Junie. We must not let the
+        // agent run on the target branch (e.g. `main`): if Junie performs its
+        // own `git commit && git push` via shell tools, those changes would
+        // land directly in the target branch (the remote is already
+        // authenticated with a push-capable token in `setRemoteIfNeeded`).
+        // Mirrors `WORKING_BRANCH` preparation in junie-github-action's
+        // `prepare` step. Cases:
+        //   - codeReview task: no commits expected, stay where we are;
+        //   - MR comment/event with mrMode === "append" on a non-default
+        //     branch: append commits to the MR's source branch (current);
+        //   - everything else: create an isolated `junie/<ts>` branch now,
+        //     so any agent-side push goes there, not to the target.
+        const isAppendMode = (taskExtractionResult instanceof MergeRequestCommentTask
+                || taskExtractionResult instanceof MergeRequestEventTask)
+            && context.cliOptions.mrMode === "append"
+            && branchToPull !== context.defaultBranch;
+        let workingBranch = branchToPull;
+        if (!junieTask.codeReviewTask && !isAppendMode) {
+            workingBranch = `junie/${Date.now()}`;
+            logger.info(`Pre-creating working branch ${workingBranch} (off ${branchToPull}) before running Junie`);
+            await checkoutLocalBranch(workingBranch);
+        }
+
         const resultJson = runJunie(
             junieTask,
             context.junieApiKey,
@@ -160,12 +184,10 @@ export async function execute(context: GitLabExecutionContext) {
 
         if (junieTask.codeReviewTask) {
             await initGit()
-        } else if ((taskExtractionResult instanceof MergeRequestCommentTask || taskExtractionResult instanceof MergeRequestEventTask)
-            && context.cliOptions.mrMode === "append"
-            && branchToPull !== context.defaultBranch) {
+        } else if (isAppendMode) {
             await pushChangesToTheSameBranch(
                 projectPath,
-                branchToPull,
+                workingBranch,
                 commitMessage,
             );
         } else {
@@ -175,6 +197,7 @@ export async function execute(context: GitLabExecutionContext) {
                 taskExtractionResult.getTitle(),
                 taskExtractionResult.generateMrIntro(outcome),
                 commitMessage,
+                workingBranch,
                 branchToPull,
             );
         }
@@ -314,6 +337,7 @@ async function pushChangesAsMergeRequest(
     mrTitle: string,
     mrDescription: string,
     commitMessage: string,
+    branchName: string,
     mergeTargetBranch: string,
 ): Promise<string | null> {
     const stagedChanges = await stageAndLogChanges();
@@ -322,11 +346,8 @@ async function pushChangesAsMergeRequest(
         return null;
     }
 
-    const branchName = `test-${Date.now()}`;
-    logger.info(`Changes will be pushed to a new branch ${branchName} and a merge request will be created.`)
+    logger.info(`Changes will be pushed to branch ${branchName} and a merge request will be created (target: ${mergeTargetBranch}).`)
     // initializeGitLFS();
-
-    await checkoutLocalBranch(branchName);
 
     await commitGitChanges(commitMessage);
     await pushGitChanges(projectPath, branchName);
