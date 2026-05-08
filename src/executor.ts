@@ -10,6 +10,7 @@ import {
     addAllToGit,
     checkForChanges,
     checkoutBranch,
+    fetchBranch,
     checkoutLocalBranch,
     commitGitChanges, initGit,
     pushGitChanges
@@ -124,6 +125,10 @@ export async function execute(context: GitLabExecutionContext) {
 
         // checkout another branch if needed:
         const branchToPull = taskExtractionResult.checkoutBranch;
+        const targetBranch = taskExtractionResult.targetBranch;
+        if (targetBranch && targetBranch !== branchToPull) {
+            await fetchBranch(projectPath, targetBranch);
+        }
         await checkoutBranch(projectPath, branchToPull);
 
         const junieTask = await taskExtractionResult.generateJuniePrompt(context.useMcp);

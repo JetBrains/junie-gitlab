@@ -40,6 +40,7 @@ export interface JunieTask {
 export interface SuccessfulTaskExtractionResult {
     success: true;
     checkoutBranch: string;
+    targetBranch?: string;
 
     generateJuniePrompt(useMcp: boolean): Promise<JunieTask>;
 
@@ -61,6 +62,10 @@ export class IssueCommentTask implements SuccessfulTaskExtractionResult {
         public readonly fetchedData: FetchedData,
         public readonly checkoutBranch: string,
     ) {
+    }
+
+    get targetBranch(): string {
+        return this.checkoutBranch;
     }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
@@ -129,6 +134,10 @@ export class MergeRequestCommentTask implements SuccessfulTaskExtractionResult {
 
     get checkoutBranch(): string {
         return this.context.mergeRequestSourceBranch;
+    }
+
+    get targetBranch(): string {
+        return this.context.mergeRequestTargetBranch;
     }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
@@ -213,6 +222,10 @@ export class MergeRequestEventTask implements SuccessfulTaskExtractionResult {
 
     get checkoutBranch(): string {
         return this.context.mrEventSourceBranch;
+    }
+
+    get targetBranch(): string {
+        return this.context.mrEventTargetBranch;
     }
 
     async generateJuniePrompt(useMcp: boolean): Promise<JunieTask> {
