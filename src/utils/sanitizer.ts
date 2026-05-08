@@ -142,6 +142,54 @@ function redactGitLabTokens(content: string): string {
 }
 
 /**
+ * Neutralize trigger phrases that GitLab CI/CD rules in `script-sample.yaml` /
+ * `child-pipeline.yml` use to start a Junie pipeline:
+ *
+ *   - `#junie` followed by whitespace or end of string (rule: `/#junie(\s|$)/i`)
+ *   - `@project_<id>_bot[<n>]` mentions (rule: `/@project_[0-9]+_bot/i`)
+ *
+ * Without this, every outgoing comment posted by Junie that quotes the
+ * original prompt verbatim (e.g. in a summary like
+ * "...in response to #junie rereview this pls...") would re-trigger the
+ * pipeline because GitLab's note-event rule matches on raw comment text and
+ * does not look at the comment author. We replace the trigger token with a
+ * human-readable placeholder so:
+ *   - the GitLab rule regex stops matching (no recursive pipeline),
+ *   - the reader still understands what the original prompt looked like.
+ *
+ * Scope: applied only to OUTGOING text (note bodies, MR titles) authored by
+ * the wrapper / Junie itself; never to text used as prompt input. Content
+ * inside fenced code blocks (```...```) is left intact so user-provided code
+ * samples / diffs are not modified.
+ *
+ * Keep the patterns below in lock-step with the GitLab `rules:` regexes.
+ */
+const JUNIE_TRIGGER_PLACEHOLDER = "`<junie-trigger>`";
+const BOT_MENTION_PLACEHOLDER = "`<junie-bot-mention>`";
+
+export function neutralizeJunieTriggers(text: string | null | undefined): string {
+    if (!text) return "";
+
+    const fenceRe = /```[\s\S]*?```/g;
+
+    const neutralize = (chunk: string): string =>
+        chunk
+            .replace(/#junie(?=\s|$)/gi, JUNIE_TRIGGER_PLACEHOLDER)
+            .replace(/@project_\d+_bot\d*/gi, BOT_MENTION_PLACEHOLDER);
+
+    let result = "";
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = fenceRe.exec(text)) !== null) {
+        result += neutralize(text.slice(lastIndex, match.index));
+        result += match[0]; // keep code fence content as-is
+        lastIndex = match.index + match[0].length;
+    }
+    result += neutralize(text.slice(lastIndex));
+    return result;
+}
+
+/**
  * Master sanitization function that applies all security measures
  * Use this function to sanitize any user-submitted content before including in prompts
  */
