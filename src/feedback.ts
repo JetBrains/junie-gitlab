@@ -7,6 +7,7 @@ import {
 } from "./models/feedback-request.js";
 import {addIssueComment, addIssueCommentEmoji, addMergeRequestDiscussionNote, addMergeRequestNote} from "./api/gitlab-api.js";
 import {logger} from "./utils/logging.js";
+import {neutralizeJunieTriggers} from "./utils/sanitizer.js";
 
 export async function submitFeedback(request: FeedbackRequest) {
 
@@ -23,19 +24,19 @@ export async function submitFeedback(request: FeedbackRequest) {
         }
     } else if (request instanceof IssueCommentRequest) {
         try {
-            await addIssueComment(request.projectId, request.issueId, request.commentText);
+            await addIssueComment(request.projectId, request.issueId, neutralizeJunieTriggers(request.commentText));
         } catch (e) {
             logger.error(`Failed to add comment to issue ${request.issueId}`, e);
         }
     } else if (request instanceof MergeRequestDiscussionRequest) {
         try {
-            await addMergeRequestDiscussionNote(request.projectId, request.mergeRequestId, request.discussionId, request.commentText);
+            await addMergeRequestDiscussionNote(request.projectId, request.mergeRequestId, request.discussionId, neutralizeJunieTriggers(request.commentText));
         } catch (e) {
             logger.error(`Failed to add note to discussion ${request.discussionId} in merge request ${request.mergeRequestId}`, e);
         }
     } else if (request instanceof MergeRequestNoteRequest) {
         try {
-            await addMergeRequestNote(request.projectId, request.mergeRequestId, request.commentText);
+            await addMergeRequestNote(request.projectId, request.mergeRequestId, neutralizeJunieTriggers(request.commentText));
         } catch (e) {
             logger.error(`Failed to add note to merge request ${request.mergeRequestId}`, e);
         }

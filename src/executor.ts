@@ -32,6 +32,7 @@ import {
     isMergeRequestEvent
 } from "./context.js";
 import {writeToFile} from "./utils/io.js";
+import {neutralizeJunieTriggers} from "./utils/sanitizer.js";
 import {Variable, webhookEnv} from "./webhook-env.js";
 import {PipelineVariableSchema} from "@gitbeaker/rest";
 import {PROJECT_ACCESS_TOKEN_NAME} from "./constants/gitlab.js";
@@ -334,8 +335,8 @@ async function pushChangesAsMergeRequest(
         projectId,
         branchName,
         mergeTargetBranch,
-        mrTitle,
-        mrDescription,
+        neutralizeJunieTriggers(mrTitle),
+        neutralizeJunieTriggers(mrDescription),
     );
     return mr.web_url;
 }
