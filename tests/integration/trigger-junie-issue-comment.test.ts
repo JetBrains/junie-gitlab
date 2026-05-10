@@ -1,4 +1,5 @@
-import {describe, test, beforeAll, afterAll, expect} from "bun:test";
+import { describe, test, before, after } from "node:test";
+import assert from "node:assert";
 import {JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX} from "../../src/constants/gitlab.js";
 import {
     initApi,
@@ -14,16 +15,21 @@ import {gitLabConfig} from "../config/config.js";
 const projectId = gitLabConfig.projectId as unknown as number;
 initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
 
+const expect = (actual: any, message?: string) => ({
+    toBeGreaterThan: (expected: number) => assert.ok(actual > expected, message),
+    toBe: (expected: any) => assert.strictEqual(actual, expected, message),
+});
+
 describe("Trigger Junie in Issue Comment", () => {
     let issueIid: number;
     let testPassed = false;
     let mrIidToClean: number | undefined;
 
-    beforeAll(async () => {
+    before(async () => {
         console.log(`Using existing project ID: ${projectId}`);
-    }, 30000);
+    });
 
-    afterAll(async () => {
+    after(async () => {
         if (mrIidToClean) {
             try {
                 await closeMergeRequest(projectId, mrIidToClean);
@@ -45,7 +51,7 @@ describe("Trigger Junie in Issue Comment", () => {
         }
     });
 
-    test("create MR via #junie comment on issue", async () => {
+    test("create MR via #junie comment on issue", { timeout: 1200000 }, async () => {
         const issueTitle = `Feature Request: Math Utilities ${Date.now()}`;
         const issueBody = "We need some basic math utilities in this project.";
         const filename = "math_ops.ts";
@@ -59,21 +65,16 @@ describe("Trigger Junie in Issue Comment", () => {
 
         const commentBody = `#junie please implement a function ${functionName} in a new file ${filename}. The function should return the factorial of n. Also add a README.md file.`;
         console.log(`Commenting on Issue #${issueIid}: "${commentBody}"`);
-
         const comment = await addIssueComment(projectId, issueIid, commentBody);
         await waitForCommentReaction(projectId, issueIid, comment.id);
         console.log("Junie reacted to the issue comment.");
-
         await waitForIssueComment(projectId, issueIid, JUNIE_STARTED_MESSAGE);
         console.log("Junie started processing the issue.");
-
         const foundComment = await waitForIssueComment(projectId, issueIid, JUNIE_FINISHED_PREFIX);
         console.log(`Junie posted the finish message: ${foundComment.body}`);
-
         const mrIid = findMergeRequestIidFromComment(foundComment, MR_LINK_PREFIX);
         expect(mrIid, "Could not parse MR IID from link").toBeGreaterThan(0);
         mrIidToClean = mrIid;
-
         const titleKeywords = ["factorial", "math", "README"];
         const title = await getMRTitle(projectId, mrIid);
         console.log(`MR title: ${title}`);
@@ -81,14 +82,12 @@ describe("Trigger Junie in Issue Comment", () => {
             titleKeywords.some(kw => title.toLowerCase().includes(kw.toLowerCase())),
             `MR title "${title}" does not contain any of: ${titleKeywords.join(', ')}`
         ).toBe(true);
-
         const result = await checkMergeRequestFiles(projectId, mrIid, {
             [filename]: functionName,
             "README.md": ""
         });
         expect(result, "MR files check failed - required content not found in files").toBe(true);
-
         console.log("Junie finished processing the issue.");
         testPassed = true;
-    }, 1200000);
+    });
 });

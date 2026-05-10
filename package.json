@@ -14,7 +14,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "test:unit": "npx tsx --test tests/unit/*.test.ts",
+    "test:integration": "npx tsx --test tests/integration/*.test.ts"
   },
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",
@@ -24,6 +26,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
     "typescript": "^5.6.3"
   }
 }

@@ -1,4 +1,5 @@
-import {describe, test, beforeAll, afterAll, expect} from "bun:test";
+import { describe, test, before, after } from "node:test";
+import assert from "node:assert";
 import {JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX} from "../../src/constants/gitlab.js";
 import {
     initApi,
@@ -13,20 +14,24 @@ import {gitLabConfig} from "../config/config.js";
 const projectId = gitLabConfig.projectId as unknown as number;
 initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
 
+const expect = (actual: any, message?: string) => ({
+    toBe: (expected: any) => assert.strictEqual(actual, expected, message),
+});
+
 describe("Trigger Junie in MR comment", () => {
     let defaultBranch: string = 'main';
     let branchName: string | undefined;
     let mrIid: number | undefined;
     let testPassed = false;
 
-    beforeAll(async () => {
+    before(async () => {
         console.log(`Using existing project ID: ${projectId}`);
         const projectInfo = await getProjectById(projectId) as any;
         defaultBranch = projectInfo.default_branch || 'main';
         console.log(`Default branch: ${defaultBranch}`);
-    }, 30000);
+    });
 
-    afterAll(async () => {
+    after(async () => {
         if (testPassed) {
             if (mrIid) {
                 try {
@@ -51,7 +56,7 @@ describe("Trigger Junie in MR comment", () => {
         }
     });
 
-    test("apply changes to MR based on #junie comment", async () => {
+    test("apply changes to MR based on #junie comment", { timeout: 900000 }, async () => {
         const timestamp = Date.now();
         branchName = `feature/math-utils-${timestamp}`;
         const filename = "math_utils.py";
@@ -84,5 +89,5 @@ describe("Trigger Junie in MR comment", () => {
 
         console.log("Junie finished processing.");
         testPassed = true;
-    }, 900000);
+    });
 });

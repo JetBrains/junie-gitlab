@@ -1,5 +1,14 @@
-import {describe, test, expect} from "bun:test";
+import {describe, test} from "node:test";
+import assert from "node:assert";
 import {neutralizeJunieTriggers} from "../../src/utils/sanitizer.js";
+
+const expect = (actual: any) => ({
+    toBe: (expected: any) => assert.strictEqual(actual, expected),
+    not: {
+        toContain: (expected: string) => assert.ok(!actual.includes(expected)),
+    },
+    toContain: (expected: string) => assert.ok(actual.includes(expected)),
+});
 
 /**
  * Unit tests for `neutralizeJunieTriggers`.
