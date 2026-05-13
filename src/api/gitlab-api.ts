@@ -436,6 +436,34 @@ export async function waitForMRFileContent(projectId: number, mrIid: number, fil
     );
 }
 
+export async function getMRInlineNotes(
+    projectId: number,
+    mrIid: number,
+    predicate?: (note: any) => boolean
+): Promise<any[]> {
+    const discussions = await getMRDiscussions(projectId, mrIid);
+    const notes = discussions
+        .flatMap(d => (d.notes ?? []) as any[])
+        .filter(n => !!n.position);
+    return predicate ? notes.filter(predicate) : notes;
+}
+
+export async function waitForMRInlineNotes(
+    projectId: number,
+    mrIid: number,
+    atLeast: number,
+    timeoutMs: number = 600000
+): Promise<any[]> {
+    return waitFor(
+        async () => {
+            const notes = await getMRInlineNotes(projectId, mrIid);
+            return notes.length >= atLeast ? notes : undefined;
+        },
+        `Timeout waiting for at least ${atLeast} inline discussion notes on MR ${mrIid}`,
+        {timeoutMs, intervalMs: 10000}
+    );
+}
+
 export async function checkMergeRequestFiles(projectId: number, mrIid: number, expectedFiles: Record<string, string>) {
     const files = await getMRDiffs(projectId, mrIid);
     for (const [filename, contentSnippet] of Object.entries(expectedFiles)) {
