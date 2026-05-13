@@ -15,8 +15,8 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "start": "node dist/cli.js",
-    "test:unit": "npx tsx --test tests/unit/*.test.ts",
-    "test:integration": "npx tsx --test tests/integration/*.test.ts"
+    "test:unit": "node --import tsx --test tests/unit/*.test.ts",
+    "test:integration": "node --import tsx --test tests/integration/*.test.ts"
   },
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",
