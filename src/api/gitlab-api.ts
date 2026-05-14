@@ -247,7 +247,7 @@ export async function createProjectHook(
  * Useful for fix-ci feature when triggered via comment (to avoid analyzing the Junie pipeline itself)
  * Skips running/pending pipelines as they might be the current Junie pipeline
  */
-export async function getLastCompletedPipelineForMR(projectId: number, mergeRequestId: number) {
+export async function getLastFailedPipelineForMR(projectId: number, mergeRequestId: number) {
     logger.debug(`Fetching pipelines for MR ${mergeRequestId} in project ${projectId}`);
 
     // Get all pipelines for this MR (already sorted by ID descending - newest first)
@@ -433,6 +433,53 @@ export async function waitForMRFileContent(projectId: number, mrIid: number, fil
         },
         `Timeout waiting for "${contentInclude}" in ${filename}`,
         {timeoutMs, intervalMs: 10000}
+    );
+}
+
+export async function waitForMRFileNotContains(projectId: number, mrIid: number, filename: string, contentExclude: string, timeoutMs: number = 900000) {
+    await waitFor(
+        async () => {
+            const files = await getMRDiffs(projectId, mrIid);
+            const file = files.find(f => f.new_path === filename);
+            return !file || !file.diff.includes(contentExclude) ? true as const : undefined;
+        },
+        `Timeout waiting for "${contentExclude}" to be removed from ${filename}`,
+        {timeoutMs, intervalMs: 10000}
+    );
+}
+
+export async function waitForFailedPipeline(projectId: number, mrIid: number, timeoutMs: number = 600000) {
+    return waitFor(
+        async () => (await getLastFailedPipelineForMR(projectId, mrIid)) ?? undefined,
+        `Timeout waiting for a failed pipeline on MR ${mrIid}`,
+        {timeoutMs}
+    );
+}
+
+export async function waitForSuccessfulPipeline(
+    projectId: number,
+    mrIid: number,
+    afterPipelineId: number,
+    timeoutMs: number = 900000,
+) {
+    return waitFor(
+        async () => {
+            const pipelines = await withRetry(
+                () => api.MergeRequests.allPipelines(projectId, mrIid),
+                `pipelines for MR ${mrIid}`,
+            );
+            const newer = pipelines.filter(p => p.id > afterPipelineId);
+            const broken = newer.find(p => p.status === 'failed' || p.status === 'canceled');
+            if (broken) {
+                throw new Error(
+                    `Expected CI to pass after the fix, but pipeline #${broken.id} ` +
+                    `ended with status "${broken.status}"`,
+                );
+            }
+            return newer.find(p => p.status === 'success');
+        },
+        `Timeout waiting for a successful pipeline newer than #${afterPipelineId} on MR ${mrIid}`,
+        {timeoutMs, intervalMs: 10000},
     );
 }
 
