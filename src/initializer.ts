@@ -6,15 +6,22 @@ import {
     getAllProjectHooks, setJunieAvatar
 } from "./api/gitlab-api.js";
 import {logger} from "./utils/logging.js";
-import {AccessLevel} from "@gitbeaker/rest";
+import {AccessLevel, Gitlab} from "@gitbeaker/rest";
 import {PROJECT_ACCESS_TOKEN_NAME} from "./constants/gitlab.js";
 
-export async function initialize(projectIds: number[]) {
+export interface InitOptions {
+    apiV4Url?: string;
+    junieProjectId?: number;
+    junieProjectDefaultBranch?: string;
+    apiV4UrlForLocalProbe?: string;
+}
 
-    const apiV4Url = webhookEnv.apiV4Url.value!;
-    const junieProjectDefaultBranch = webhookEnv.junieProjectDefaultBranch.value!;
+export async function initialize(projectIds: number[], options: InitOptions = {}) {
 
-    const junieProjectId = webhookEnv.junieProjectId.value!;
+    const apiV4Url = options.apiV4Url ?? webhookEnv.apiV4Url.value!;
+    const junieProjectDefaultBranch = options.junieProjectDefaultBranch ?? webhookEnv.junieProjectDefaultBranch.value!;
+    const junieProjectId = options.junieProjectId ?? webhookEnv.junieProjectId.value!;
+
     logger.info(`Initializing Junie CLI in project ${junieProjectId}`);
 
     for (const projectId of projectIds) {
@@ -70,7 +77,36 @@ export async function initialize(projectIds: number[]) {
             }
             logger.info(`Generated PAT "${pat.name}" with id ${pat.id} and expiration date ${pat.expires_at}`);
 
-            const webhookUrl = `${apiV4Url}/projects/${junieProjectId}/trigger/pipeline?ref=${junieProjectDefaultBranch}&token={trigger_token}&inputs[project_token]={project_token}`;
+            const probeUrl = options.apiV4UrlForLocalProbe;
+            if (probeUrl) {
+                const patProbe = new Gitlab({ host: new URL(probeUrl).origin, token: pat.token });
+                const probeDeadline = Date.now() + 60_000;
+                let probeOk = false;
+                while (Date.now() < probeDeadline) {
+                    try {
+                        await patProbe.Projects.show(projectId);
+                        probeOk = true;
+                        break;
+                    } catch (e: any) {
+                        if (e?.cause?.description?.startsWith("404") || /404/.test(String(e?.message))) {
+                            await new Promise(r => setTimeout(r, 1000));
+                            continue;
+                        }
+                        throw e;
+                    }
+                }
+                if (!probeOk) {
+                    logger.warn(`PAT for project ${projectId} did not gain access within 60s — continuing anyway`);
+                } else {
+                    logger.debug(`PAT for project ${projectId} is live`);
+                }
+            }
+
+            const webhookUrl = `${apiV4Url}/projects/${junieProjectId}/trigger/pipeline`
+                + `?ref=${junieProjectDefaultBranch}`
+                + `&token={trigger_token}`
+                + `&inputs[project_token]={project_token}`
+                + `&variables[GITLAB_TOKEN_FOR_JUNIE]={project_token}`;
 
             const template: WebhookTemplate = {
                 variables: {},

@@ -159,6 +159,11 @@ export async function getProjectById(projectId: number): Promise<ProjectSchema> 
     return withRetry(() => api.Projects.show(projectId), `project ${projectId}`);
 }
 
+export async function deleteProject(projectId: number): Promise<void> {
+    logger.debug(`Deleting project ${projectId}`);
+    await withRetry(() => api.Projects.remove(projectId), `delete project ${projectId}`);
+}
+
 export async function getGroupById(groupId: number): Promise<ExpandedGroupSchema> {
     logger.debug(`Fetching group ${groupId}`);
     return withRetry(() => api.Groups.show(groupId), `group ${groupId}`);
@@ -328,11 +333,6 @@ export async function updateProjectCiConfigPath(
     );
 }
 
-export async function deleteIssue(projectId: number, issueIid: number): Promise<void> {
-    logger.debug(`Deleting issue ${issueIid} from project ${projectId}`);
-    return withRetry(() => api.Issues.remove(projectId, issueIid), `delete issue ${issueIid}`);
-}
-
 export async function createIssue(projectId: number, title: string, description: string): Promise<any> {
     logger.debug(`Creating issue "${title}" in project ${projectId}`);
     return withRetry(() => (api.Issues as any).create(projectId, title, { description }), `create issue in project ${projectId}`);
@@ -371,11 +371,6 @@ export async function getMRDiscussions(projectId: number, mrIid: number): Promis
 export async function createBranch(projectId: number, branchName: string, ref: string) {
     logger.debug(`Creating branch ${branchName} from ${ref} in project ${projectId}`);
     return withRetry(() => api.Branches.create(projectId, branchName, ref), `create branch ${branchName}`);
-}
-
-export async function deleteBranch(projectId: number, branchName: string): Promise<void> {
-    logger.debug(`Deleting branch ${branchName} in project ${projectId}`);
-    return withRetry(() => api.Branches.remove(projectId, branchName), `delete branch ${branchName}`);
 }
 
 export async function createRepositoryFile(projectId: number, filePath: string, branch: string, content: string, commitMessage: string) {
@@ -444,6 +439,22 @@ export async function checkMergeRequestFiles(projectId: number, mrIid: number, e
         if (contentSnippet && !fileChange.diff.includes(contentSnippet)) return false;
     }
     return true;
+}
+
+export async function waitForMergeRequestFiles(
+    projectId: number,
+    mrIid: number,
+    filename: string,
+    {timeoutMs = 600000, intervalMs = 10000}: { timeoutMs?: number; intervalMs?: number } = {}
+): Promise<void> {
+    await waitFor(
+        async () => {
+            const files = await getMRDiffs(projectId, mrIid);
+            return files.find(f => f.new_path === filename) ? true as const : undefined;
+        },
+        `Timeout waiting for file "${filename}" to appear in MR ${mrIid}`,
+        {timeoutMs, intervalMs}
+    );
 }
 
 export async function getMRTitle(projectId: number, mrIid: number): Promise<string> {

@@ -1,19 +1,16 @@
 import { describe, test, before, after } from "node:test";
 import assert from "node:assert";
-import {JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX} from "../../src/constants/gitlab.js";
+import {JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX, MR_LINK_PREFIX} from "../../src/constants/gitlab.js";
 import {
     initApi,
-    createIssue, deleteIssue,
+    createIssue,
     addIssueComment,
     waitForIssueComment, waitForCommentReaction,
-    closeMergeRequest, checkMergeRequestFiles,
+    waitForMergeRequestFiles, checkMergeRequestFiles,
     findMergeRequestIidFromComment, getMRTitle,
 } from "../../src/api/gitlab-api.js";
-import {MR_LINK_PREFIX} from "../../src/constants/gitlab.js";
 import {gitLabConfig} from "../config/config.js";
-
-const projectId = gitLabConfig.projectId as unknown as number;
-initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
+import {LocalGitLabFixture} from "../fixtures/local-gitlab-fixture.js";
 
 const expect = (actual: any, message?: string) => ({
     toBeGreaterThan: (expected: number) => assert.ok(actual > expected, message),
@@ -21,34 +18,20 @@ const expect = (actual: any, message?: string) => ({
 });
 
 describe("Trigger Junie in Issue Comment", () => {
+    const fixture = new LocalGitLabFixture();
+    let projectId: number;
     let issueIid: number;
     let testPassed = false;
-    let mrIidToClean: number | undefined;
 
     before(async () => {
-        console.log(`Using existing project ID: ${projectId}`);
+        initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
+        const handle = await fixture.create("test-issue-comment");
+        projectId = handle.projectId;
+        console.log(`Created isolated project #${projectId} (${handle.webUrl})`);
     });
 
     after(async () => {
-        if (mrIidToClean) {
-            try {
-                await closeMergeRequest(projectId, mrIidToClean);
-                console.log(`Closed MR #${mrIidToClean}`);
-            } catch (e) {
-                console.error(`Failed to close MR #${mrIidToClean}: ${e}`);
-            }
-        }
-
-        if (testPassed) {
-            if (issueIid) {
-                console.log(`Deleting successful test issue: #${issueIid} in project ${projectId}`);
-                await deleteIssue(projectId, issueIid);
-            }
-        } else {
-            if (issueIid) {
-                console.log(`⚠️ Keeping failed test issue: #${issueIid} in project ${projectId} for investigation`);
-            }
-        }
+        await fixture.destroy({testPassed});
     });
 
     test("create MR via #junie comment on issue", { timeout: 1200000 }, async () => {
@@ -74,7 +57,6 @@ describe("Trigger Junie in Issue Comment", () => {
         console.log(`Junie posted the finish message: ${foundComment.body}`);
         const mrIid = findMergeRequestIidFromComment(foundComment, MR_LINK_PREFIX);
         expect(mrIid, "Could not parse MR IID from link").toBeGreaterThan(0);
-        mrIidToClean = mrIid;
         const titleKeywords = ["factorial", "math", "README"];
         const title = await getMRTitle(projectId, mrIid);
         console.log(`MR title: ${title}`);
@@ -82,6 +64,7 @@ describe("Trigger Junie in Issue Comment", () => {
             titleKeywords.some(kw => title.toLowerCase().includes(kw.toLowerCase())),
             `MR title "${title}" does not contain any of: ${titleKeywords.join(', ')}`
         ).toBe(true);
+        await waitForMergeRequestFiles(projectId, mrIid, filename);
         const result = await checkMergeRequestFiles(projectId, mrIid, {
             [filename]: functionName,
             "README.md": ""

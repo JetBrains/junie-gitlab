@@ -3,62 +3,40 @@ import assert from "node:assert";
 import {JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX} from "../../src/constants/gitlab.js";
 import {
     initApi,
-    createBranch, deleteBranch, createRepositoryFile,
-    createMergeRequest, closeMergeRequest,
+    createBranch, createRepositoryFile,
+    createMergeRequest,
     addMergeRequestNote,
-    waitForMRComment, waitForMRFileContent, checkMergeRequestFiles,
-    getProjectById,
+    waitForMRComment, waitForMRFileContent, waitForMergeRequestFiles, checkMergeRequestFiles,
 } from "../../src/api/gitlab-api.js";
 import {gitLabConfig} from "../config/config.js";
-
-const projectId = gitLabConfig.projectId as unknown as number;
-initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
+import {LocalGitLabFixture} from "../fixtures/local-gitlab-fixture.js";
 
 const expect = (actual: any, message?: string) => ({
     toBe: (expected: any) => assert.strictEqual(actual, expected, message),
 });
 
 describe("Trigger Junie in MR comment", () => {
-    let defaultBranch: string = 'main';
-    let branchName: string | undefined;
+    const fixture = new LocalGitLabFixture();
+    let projectId: number;
+    let defaultBranch: string;
     let mrIid: number | undefined;
     let testPassed = false;
 
     before(async () => {
-        console.log(`Using existing project ID: ${projectId}`);
-        const projectInfo = await getProjectById(projectId) as any;
-        defaultBranch = projectInfo.default_branch || 'main';
-        console.log(`Default branch: ${defaultBranch}`);
+        initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
+        const handle = await fixture.create("test-mr-comment", "--mr-mode append");
+        projectId = handle.projectId;
+        defaultBranch = handle.defaultBranch;
+        console.log(`Created isolated project #${projectId} (${handle.webUrl}), default branch: ${defaultBranch}`);
     });
 
     after(async () => {
-        if (testPassed) {
-            if (mrIid) {
-                try {
-                    await closeMergeRequest(projectId, mrIid);
-                    console.log(`Closed MR #${mrIid}`);
-                } catch (e) {
-                    console.error(`Failed to close MR #${mrIid}: ${e}`);
-                }
-            }
-            if (branchName) {
-                try {
-                    await deleteBranch(projectId, branchName);
-                    console.log(`Deleted branch: ${branchName}`);
-                } catch (e) {
-                    console.error(`Failed to delete branch ${branchName}: ${e}`);
-                }
-            }
-        } else {
-            if (mrIid) {
-                console.log(`⚠️ Keeping failed test MR: #${mrIid} in project ${projectId} for investigation`);
-            }
-        }
+        await fixture.destroy({testPassed});
     });
 
     test("apply changes to MR based on #junie comment", { timeout: 900000 }, async () => {
         const timestamp = Date.now();
-        branchName = `feature/math-utils-${timestamp}`;
+        const branchName = `feature/math-utils-${timestamp}`;
         const filename = "math_utils.py";
         const content = "def divide(a, b):\n    return a / b\n";
 
@@ -81,6 +59,7 @@ describe("Trigger Junie in MR comment", () => {
         await waitForMRComment(projectId, mrIid!, JUNIE_FINISHED_PREFIX);
         await waitForMRFileContent(projectId, mrIid!, filename, "b == 0");
 
+        await waitForMergeRequestFiles(projectId, mrIid!, filename);
         const result = await checkMergeRequestFiles(projectId, mrIid!, {
             [filename]: "b == 0",
             "README.md": ""
