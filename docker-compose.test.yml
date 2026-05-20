@@ -1,0 +1,81 @@
+# Local GitLab stack used by `npm run test:integration:local`.
+# Hosts an internal Docker network ("junie-test-net") that:
+#   - GitLab CE binds to (external_url http://gitlab so internal DNS works).
+#   - The GitLab Runner uses for job containers (DOCKER_NETWORK_MODE).
+#   - The test harness on the host reaches via http://localhost:8080.
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:17.5.0-ce.0
+    # GitLab CE ships only linux/amd64. On Apple Silicon it runs under
+    # Rosetta emulation (slower boot, ~5-7 min instead of 3-5).
+    platform: linux/amd64
+    container_name: junie-test-gitlab
+    hostname: gitlab
+    restart: unless-stopped
+    shm_size: 256m
+    environment:
+      GITLAB_ROOT_PASSWORD: ${LOCAL_GITLAB_ROOT_PASSWORD:-JunieTestRoot1!}
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab'
+        nginx['listen_port'] = 80
+        # Trim unused services to fit GitHub Actions ubuntu-latest (~7GB RAM).
+        prometheus_monitoring['enable'] = false
+        alertmanager['enable'] = false
+        node_exporter['enable'] = false
+        redis_exporter['enable'] = false
+        postgres_exporter['enable'] = false
+        gitlab_exporter['enable'] = false
+        mattermost['enable'] = false
+        registry['enable'] = false
+        gitlab_kas['enable'] = false
+        # Trim worker counts.
+        puma['worker_processes'] = 2
+        sidekiq['max_concurrency'] = 5
+        # Webhooks must be able to call http://gitlab (this same instance).
+        gitlab_rails['allow_local_requests_from_web_hooks_and_services'] = true
+    ports:
+      # HTTP API for the host-side test harness. SSH (22) is not exposed —
+      # tests use HTTP only, and 2222 often clashes with local sshd.
+      - "8080:80"
+    volumes:
+      - junie-test-gitlab-config:/etc/gitlab
+      - junie-test-gitlab-data:/var/opt/gitlab
+    tmpfs:
+      - /var/log/gitlab:size=512m
+      - /var/opt/gitlab/gitlab-rails/tmp:size=256m
+    networks:
+      - junie-test-net
+    healthcheck:
+      # /api/v4/version is auth-protected: 401 (= Rails responding) counts as
+      # healthy. /-/readiness needs a monitoring token, so we don't use it.
+      test: ["CMD-SHELL", "code=$$(curl -sS -o /dev/null -w '%{http_code}' http://localhost/api/v4/version || echo 000); [ \"$$code\" = '200' ] || [ \"$$code\" = '401' ]"]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 360s
+
+  gitlab-runner:
+    image: gitlab/gitlab-runner:alpine
+    container_name: junie-test-runner
+    restart: unless-stopped
+    depends_on:
+      gitlab:
+        condition: service_started
+    environment:
+      DOCKER_NETWORK_MODE: junie-test-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - junie-test-runner-config:/etc/gitlab-runner
+    networks:
+      - junie-test-net
+
+networks:
+  junie-test-net:
+    name: junie-test-net
+    driver: bridge
+
+volumes:
+  junie-test-gitlab-config:
+  junie-test-gitlab-data:
+  junie-test-runner-config:

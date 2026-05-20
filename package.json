@@ -16,7 +16,10 @@
     "clean": "rm -rf dist",
     "start": "node dist/cli.js",
     "test:unit": "npx tsx --test tests/unit/*.test.ts",
-    "test:integration": "npx tsx --test tests/integration/*.test.ts"
+    "test:integration": "node --env-file=.env.local-gitlab --import tsx --test tests/integration/*.test.ts",
+    "wrapper:build": "docker build -t junie-gitlab-wrapper:test .",
+    "gitlab:up": "npm run wrapper:build && docker compose -f docker-compose.test.yml up -d && ./scripts/bootstrap-local-gitlab.sh",
+    "gitlab:down": "./scripts/teardown-local-gitlab.sh"
   },
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",

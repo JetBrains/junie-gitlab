@@ -11,6 +11,11 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     if: ${{ !startsWith(github.ref, 'refs/heads/dependabot/') }}
+    timeout-minutes: 45
+
+    env:
+      COMPOSE_FILE: docker-compose.test.yml
+      JUNIE_API_KEY: ${{ secrets.JUNIE_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -22,21 +27,37 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run Integration Tests
+      - name: Build wrapper image from this branch
+        run: docker build -t junie-gitlab-wrapper:test .
+
+      - name: Start local GitLab stack
+        run: docker compose -f "$COMPOSE_FILE" up -d
+
+      - name: Bootstrap local GitLab
+        run: ./scripts/bootstrap-local-gitlab.sh
+
+      - name: Run integration tests
         id: run-tests
-        env:
-          TEST_GITLAB_HOST: ${{ vars.TEST_GITLAB_HOST }}
-          TEST_GITLAB_TOKEN: ${{ secrets.TEST_GITLAB_TOKEN }}
-          TEST_GITLAB_PROJECT_ID: ${{ vars.TEST_GITLAB_PROJECT_ID }}
         run: npm run test:integration
 
-      - name: Upload Test Report
+      - name: Dump docker compose logs on failure
+        if: failure()
+        run: |
+          mkdir -p test-results
+          docker compose -f "$COMPOSE_FILE" logs --no-color gitlab gitlab-runner > test-results/compose-logs.txt || true
+          docker compose -f "$COMPOSE_FILE" ps > test-results/compose-ps.txt || true
+
+      - name: Upload test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: integration-test-report
           if-no-files-found: ignore
           path: ./test-results/
-          retention-days: 2
+          retention-days: 7
+
+      - name: Tear down local GitLab stack
+        if: always()
+        run: ./scripts/teardown-local-gitlab.sh
