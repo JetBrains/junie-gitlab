@@ -99,11 +99,14 @@ export async function execute(context: GitLabExecutionContext) {
 
         const projectPath = context.projectPathWithNamespace;
 
-        // Configure glab authentication
+        // Configure glab
         try {
             const parsedUrl = new URL(context.apiV4Url);
             const glabHost = parsedUrl.host;
             const glabProtocol = parsedUrl.protocol.replace(':', ''); // 'http' or 'https'
+            execSync(`glab config set telemetry false --global`, {stdio: 'pipe'});
+            execSync(`glab config set check_update false --global`, {stdio: 'pipe'});
+            execSync(`glab config set show_whats_new false --global`, {stdio: 'pipe'});
             logger.info(`Configuring glab authentication for ${glabProtocol}://${glabHost}`);
             execSync(`echo "${context.gitlabToken}" | glab auth login --hostname ${glabHost} --stdin`, {stdio: 'inherit'});
             execSync(`glab config set --host ${glabHost} api_protocol ${glabProtocol}`, {stdio: 'pipe'});
@@ -111,7 +114,7 @@ export async function execute(context: GitLabExecutionContext) {
             const { username, name } = JSON.parse(authCheckOutput);
             logger.info(`glab authentication configured successfully. Current user: ${username} (${name})`);
         } catch (error) {
-            logger.error("Failed to configure glab authentication:", error);
+            logger.error("Failed to configure glab:", error);
         }
 
         logger.info(`Using MCP: ${context.useMcp ? 'yes' : 'no'}`);
@@ -309,7 +312,7 @@ function runJunie(
 
         // Read from file via stdin to avoid ARG_MAX limit
         runCommand(
-            `junie${authArg} --cache-dir="${cacheDir}" --output-format="json" --input-format="json" --json-output-file="${junieOutputFile}"${modelArg}${guidelinesArg}${openaiArg}${anthropicArg}${grokArg}${openrouterArg}${googleArg} < "${junieInputFile}"`,
+            `junie${authArg} --cache-dir="${cacheDir}" --skip-update-check --output-format="json" --input-format="json" --json-output-file="${junieOutputFile}"${modelArg}${guidelinesArg}${openaiArg}${anthropicArg}${grokArg}${openrouterArg}${googleArg} < "${junieInputFile}"`,
         );
 
         // Read output from file
