@@ -27,10 +27,13 @@ WORKDIR /app
 RUN apt update && apt install -y git openssh-client tree curl unzip
 RUN mkdir /junieCache
 
-# Install glab (GitLab CLI) via APT
-RUN curl -sSL "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository" | bash && \
+# Install glab from the official GitLab CLI releases
+ARG GLAB_VERSION=1.108.0
+RUN GLAB_ARCH="$(dpkg --print-architecture)" && \
+    curl -fsSL -o /tmp/glab.deb "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_${GLAB_ARCH}.deb" && \
     apt-get update && \
-    apt-get install -y glab && \
+    apt-get install -y /tmp/glab.deb && \
+    rm -f /tmp/glab.deb && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Junie
