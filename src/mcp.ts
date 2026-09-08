@@ -11,6 +11,7 @@ export function initJunieMcpConfig(gitlabApiUrl: string, gitlabToken: string, pr
                 command: "npx",
                 args: ["-y", "@zereight/mcp-gitlab"],
                 env: {
+                    GITLAB_DISABLE_VERSION_CHECK: "true",
                     GITLAB_PERSONAL_ACCESS_TOKEN: gitlabToken,
                     GITLAB_API_URL: gitlabApiUrl,
                     GITLAB_READ_ONLY_MODE: "false",
