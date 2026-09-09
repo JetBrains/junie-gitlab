@@ -24,8 +24,22 @@ FROM node:24-trixie AS runner
 WORKDIR /app
 
 # simple-git requires the git CLI in the image
-RUN apt update && apt install -y git openssh-client tree curl unzip
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    openssh-client \
+    tree \
+    curl \
+    unzip \
+    libjpeg62-turbo \
+    && rm -rf /var/lib/apt/lists/*
 RUN mkdir /junieCache
+
+# Junie's bundled JVM AWT library links against the legacy libjpeg.so.8, which
+# is no longer packaged on Debian trixie (only libjpeg62-turbo / libjpeg.so.62
+# is available). Create a compatibility symlink so Junie can find it.
+RUN LIBJPEG_SO_62="$(dpkg -L libjpeg62-turbo | grep -E 'libjpeg\.so\.62$')" && \
+    ln -s "${LIBJPEG_SO_62}" "$(dirname "${LIBJPEG_SO_62}")/libjpeg.so.8" && \
+    ldconfig
 
 # Install glab (GitLab CLI) via APT
 RUN curl -sSL "https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository" | bash && \
