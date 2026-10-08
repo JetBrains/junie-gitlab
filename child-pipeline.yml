@@ -5,6 +5,7 @@ junie-run:
   stage: junie
   image: registry.jetbrains.team/p/matterhorn/public/junie-gitlab-wrapper:latest
   script:
+    - cp -r ./.junie ~/ 2>/dev/null || true
     - rm -rf * .* # clean up the workdir before checking out a remote project
     - node /app/dist/cli.js run --verbose
   after_script:

@@ -117,3 +117,22 @@ Trigger minor fixes by mentioning Junie in MR comments with your request:
 - Be specific about what needs to change
 - Junie will follow existing code style and conventions
 - Changes are committed automatically - no manual git operations needed
+
+## Configuration
+Junie is just Junie, so you can use the same configuration as you would for any other Junie instance. 
+Everything in the `.junie` directory is copied to ~/.junie so Junie will discover your configuration at runtime.
+
+***Custom model***
+
+Write the following to `.junie/models/DeepSeek-V4.1-Flash.json` and change `JUNIE_MODEL` in your gitlab-ci file to `custom:DeepSeek-V4.1-Flash`
+
+```json
+{
+"baseUrl": "https://hostyourai.com/api/v1/chat/completions",
+"id": "deepseek-ai/DeepSeek-V4.1-Flash",
+"apiType": "OpenAICompletion",
+"apiKey": "${HYAI_API_TOKEN}"
+}
+```
+
+`HYAI_API_TOKEN` must be defined as a CI/CD variable.
